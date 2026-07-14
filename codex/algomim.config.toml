@@ -1,0 +1,22 @@
+# Template only. The installer writes an absolute model_catalog_json path and
+# an OS-specific auth command into ~/.codex/algomim.config.toml.
+
+model = "algomim"
+model_provider = "algomim"
+model_catalog_json = "<absolute-path-to-algomim-models.json>"
+web_search = "disabled"
+service_tier = "default"
+personality = "none"
+model_reasoning_effort = "medium"
+
+[model_providers.algomim]
+name = "Algomim"
+base_url = "https://api.algomim.com/v1"
+wire_api = "responses"
+
+[model_providers.algomim.auth]
+command = "<auth-command>"
+args = ["<auth-arg-1>", "<auth-arg-2>"]
+timeout_ms = 5000
+refresh_interval_ms = 300000
+
