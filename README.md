@@ -12,9 +12,20 @@ scripts, uninstall scripts, and troubleshooting docs.
 | Integration | Status | Path |
 | --- | --- | --- |
 | Codex CLI | Pilot | [`codex/`](./codex/) |
+| Claude Code | Future | [`claude-code/`](./claude-code/) |
+| Visual Studio Code | Future | [`vscode/`](./vscode/) |
+| Cursor | Future | [`cursor/`](./cursor/) |
+| Windsurf | Future | [`windsurf/`](./windsurf/) |
 
-Future integrations can live next to `codex/`, for example `claude-code/`,
-`cursor/`, `windsurf/`, or `continue/`.
+[`integrations.json`](./integrations.json) is the machine-readable integration
+index. `Future` entries reserve a stable integration ID and directory only;
+they are not installable or advertised as compatible yet.
+
+Each integration is self-contained. Client-specific configuration, installers,
+health checks, and uninstallers stay in that client's directory. API protocol
+compatibility remains in Algomim's hosted services and is never implemented in
+this public release repository. See
+[`docs/integration-standard.md`](./docs/integration-standard.md).
 
 ## Codex quick install
 
@@ -44,6 +55,8 @@ Plain `codex` keeps using the user's existing OpenAI configuration.
 - Never commit API keys, internal service keys, OpenRouter credentials, hidden
   kernel text, customer emails, or private deployment names.
 - Do not put product backend code here.
+- Do not publish placeholder installers for `Future` integrations.
+- Keep every integration isolated from the user's configuration for other AI
+  clients.
 - Prefer versioned release URLs for customer-facing instructions once a release
   is cut, for example `/v0.1.0/codex/install.ps1`.
-

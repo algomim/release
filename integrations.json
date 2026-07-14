@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "integrations": [
+    {
+      "id": "codex",
+      "displayName": "Codex CLI",
+      "status": "pilot",
+      "directory": "codex",
+      "installable": true
+    },
+    {
+      "id": "claude-code",
+      "displayName": "Claude Code",
+      "status": "future",
+      "directory": "claude-code",
+      "installable": false
+    },
+    {
+      "id": "vscode",
+      "displayName": "Visual Studio Code",
+      "status": "future",
+      "directory": "vscode",
+      "installable": false
+    },
+    {
+      "id": "cursor",
+      "displayName": "Cursor",
+      "status": "future",
+      "directory": "cursor",
+      "installable": false
+    },
+    {
+      "id": "windsurf",
+      "displayName": "Windsurf",
+      "status": "future",
+      "directory": "windsurf",
+      "installable": false
+    }
+  ]
+}
