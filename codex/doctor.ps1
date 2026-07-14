@@ -16,11 +16,6 @@ function Check-Fail {
   $script:failed = $true
 }
 
-function Check-Warn {
-  param([string] $Message)
-  Write-Host "[warn] $Message" -ForegroundColor Yellow
-}
-
 if ([string]::IsNullOrWhiteSpace($CodexHome)) {
   $CodexHome = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $HOME ".codex" }
 }
@@ -86,6 +81,28 @@ else {
 
 if (Test-Path -LiteralPath $profilePath) {
   $profile = Get-Content -Raw -LiteralPath $profilePath
+
+  if ($profile -match '(?m)^model\s*=\s*"algomim"\s*$') {
+    Check-Ok "Profile selects the algomim model."
+  }
+  else {
+    Check-Fail "Profile does not select the algomim model."
+  }
+
+  if ($profile -match '(?m)^model_provider\s*=\s*"algomim"\s*$') {
+    Check-Ok "Profile selects the Algomim provider."
+  }
+  else {
+    Check-Fail "Profile does not select the Algomim provider."
+  }
+
+  if ($profile -match '(?m)^wire_api\s*=\s*"responses"\s*$') {
+    Check-Ok "Profile uses the Responses wire API."
+  }
+  else {
+    Check-Fail "Profile does not use the Responses wire API."
+  }
+
   $baseUrlMatch = [regex]::Match($profile, 'base_url\s*=\s*"([^"]+)"')
   if ($baseUrlMatch.Success) {
     $baseUrl = $baseUrlMatch.Groups[1].Value
@@ -96,11 +113,31 @@ if (Test-Path -LiteralPath $profilePath) {
         $headers = @{ Authorization = "Bearer $((Get-Content -Raw -LiteralPath $keyPath).Trim())" }
         $modelsUrl = "$($baseUrl.TrimEnd('/'))/models"
         $response = Invoke-RestMethod -Method Get -Uri $modelsUrl -Headers $headers -TimeoutSec 20
-        $count = @($response.data).Count
-        Check-Ok "Model API responded to /models ($count models visible)."
+        $modelIds = @($response.data | ForEach-Object { $_.id })
+        if ($modelIds -contains "algomim") {
+          Check-Ok "Model API responded and exposes algomim."
+        }
+        else {
+          Check-Fail "Model API responded but does not expose algomim."
+        }
       }
       catch {
-        Check-Warn "Could not verify /models. Check network, base_url, and API key."
+        $statusCode = if ($_.Exception.Response -and $_.Exception.Response.StatusCode) {
+          [int] $_.Exception.Response.StatusCode
+        }
+        else {
+          0
+        }
+
+        if ($statusCode -eq 401) {
+          Check-Fail "Model API rejected the API key (HTTP 401)."
+        }
+        elseif ($statusCode -gt 0) {
+          Check-Fail "Model API check failed (HTTP $statusCode)."
+        }
+        else {
+          Check-Fail "Could not reach the Model API. Check network and base_url."
+        }
       }
     }
   }
@@ -114,4 +151,3 @@ if ($failed) {
 }
 
 exit 0
-

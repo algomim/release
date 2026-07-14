@@ -17,10 +17,6 @@ fail() {
   FAILED=1
 }
 
-warn() {
-  printf '[warn] %s\n' "$1" >&2
-}
-
 if command -v codex >/dev/null 2>&1; then
   ok "Codex CLI is available."
 else
@@ -56,15 +52,49 @@ else
 fi
 
 if [ -f "$PROFILE_PATH" ]; then
+  if grep -q '^[[:space:]]*model[[:space:]]*=[[:space:]]*"algomim"[[:space:]]*$' "$PROFILE_PATH"; then
+    ok "Profile selects the algomim model."
+  else
+    fail "Profile does not select the algomim model."
+  fi
+
+  if grep -q '^[[:space:]]*model_provider[[:space:]]*=[[:space:]]*"algomim"[[:space:]]*$' "$PROFILE_PATH"; then
+    ok "Profile selects the Algomim provider."
+  else
+    fail "Profile does not select the Algomim provider."
+  fi
+
+  if grep -q '^[[:space:]]*wire_api[[:space:]]*=[[:space:]]*"responses"[[:space:]]*$' "$PROFILE_PATH"; then
+    ok "Profile uses the Responses wire API."
+  else
+    fail "Profile does not use the Responses wire API."
+  fi
+
   BASE_URL=$(sed -n 's/^[[:space:]]*base_url[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$PROFILE_PATH" | head -n 1)
   if [ -n "$BASE_URL" ]; then
     ok "Profile base_url is set to $BASE_URL"
     if [ -s "$KEY_PATH" ] && command -v curl >/dev/null 2>&1; then
-      if curl -fsSL -H "Authorization: Bearer $(cat "$KEY_PATH" | tr -d '\r\n')" "$BASE_URL/models" >/dev/null 2>&1; then
-        ok "Model API responded to /models."
+      RESPONSE_FILE=$(mktemp)
+      trap 'rm -f "$RESPONSE_FILE"' HUP INT TERM EXIT
+      if HTTP_STATUS=$(curl -sS -o "$RESPONSE_FILE" -w '%{http_code}' -H "Authorization: Bearer $(tr -d '\r\n' < "$KEY_PATH")" "$BASE_URL/models"); then
+        if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+          if grep -q '"id"[[:space:]]*:[[:space:]]*"algomim"' "$RESPONSE_FILE"; then
+            ok "Model API responded and exposes algomim."
+          else
+            fail "Model API responded but does not expose algomim."
+          fi
+        elif [ "$HTTP_STATUS" = "401" ]; then
+          fail "Model API rejected the API key (HTTP 401)."
+        else
+          fail "Model API check failed (HTTP $HTTP_STATUS)."
+        fi
       else
-        warn "Could not verify /models. Check network, base_url, and API key."
+        fail "Could not reach the Model API. Check network and base_url."
       fi
+      rm -f "$RESPONSE_FILE"
+      trap - HUP INT TERM EXIT
+    elif ! command -v curl >/dev/null 2>&1; then
+      fail "curl is required to verify the Model API."
     fi
   else
     fail "Profile base_url is missing."
@@ -76,4 +106,3 @@ if [ "$FAILED" -ne 0 ]; then
 fi
 
 exit 0
-

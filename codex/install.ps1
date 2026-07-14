@@ -57,18 +57,36 @@ function Read-SecretPlainText {
   }
 }
 
-$defaultBaseUrl = "https://api.algomim.com/v1"
-if ([string]::IsNullOrWhiteSpace($BaseUrl)) {
-  $enteredBaseUrl = Read-Host "Algomim API base URL [$defaultBaseUrl]"
-  if ([string]::IsNullOrWhiteSpace($enteredBaseUrl)) {
-    $BaseUrl = $defaultBaseUrl
-  }
-  else {
-    $BaseUrl = $enteredBaseUrl
+function Read-RequiredSecretPlainText {
+  param([string] $Prompt)
+
+  while ($true) {
+    $value = Read-SecretPlainText $Prompt
+    if (-not [string]::IsNullOrWhiteSpace($value)) {
+      return $value.Trim()
+    }
+
+    Write-Warning "API key cannot be empty. Press Ctrl+C to cancel."
   }
 }
 
+function Test-UsableKeyFile {
+  param([string] $Path)
+
+  if (-not (Test-Path -LiteralPath $Path)) {
+    return $false
+  }
+
+  return -not [string]::IsNullOrWhiteSpace((Get-Content -Raw -LiteralPath $Path))
+}
+
+$defaultBaseUrl = "https://api.algomim.com/v1"
+if ([string]::IsNullOrWhiteSpace($BaseUrl)) {
+  $BaseUrl = $defaultBaseUrl
+}
+
 $BaseUrl = Normalize-BaseUrl $BaseUrl
+Write-Step "Using API base URL $BaseUrl"
 
 $codexHome = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $HOME ".codex" }
 $codexHome = [System.IO.Path]::GetFullPath($codexHome)
@@ -81,14 +99,17 @@ New-Item -ItemType Directory -Force -Path $codexHome | Out-Null
 
 if (-not $SkipKey) {
   if ([string]::IsNullOrWhiteSpace($ApiKey)) {
-    if (Test-Path -LiteralPath $keyPath) {
+    if (Test-UsableKeyFile $keyPath) {
       $reuse = Read-Host "Existing Algomim key found. Reuse it? [Y/n]"
       if ($reuse -match "^[nN]") {
-        $ApiKey = Read-SecretPlainText "Algomim API key"
+        $ApiKey = Read-RequiredSecretPlainText "New Algomim API key"
+      }
+      else {
+        Write-Step "Reusing existing API key."
       }
     }
     else {
-      $ApiKey = Read-SecretPlainText "Algomim API key"
+      $ApiKey = Read-RequiredSecretPlainText "Algomim API key"
     }
   }
 
@@ -98,7 +119,7 @@ if (-not $SkipKey) {
   }
 }
 
-if (-not (Test-Path -LiteralPath $keyPath)) {
+if (-not (Test-UsableKeyFile $keyPath)) {
   Write-Warning "No Algomim API key file found. Run this installer again without -SkipKey before starting Codex."
 }
 
@@ -173,6 +194,6 @@ Write-Host "Normal 'codex' still uses your existing default provider."
 if ($RunDoctor) {
   $doctor = if ($PSScriptRoot) { Join-Path $PSScriptRoot "doctor.ps1" } else { "" }
   if ($doctor -and (Test-Path -LiteralPath $doctor)) {
-    & $doctor
+    & $doctor -CodexHome $codexHome
   }
 }

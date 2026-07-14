@@ -35,6 +35,60 @@ log() {
   printf '[algomim] %s\n' "$1"
 }
 
+trim_value() {
+  printf '%s' "$1" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//'
+}
+
+has_interactive_terminal() {
+  [ -r /dev/tty ] && [ -w /dev/tty ] && stty -g >/dev/null 2>&1 < /dev/tty
+}
+
+read_prompt() {
+  prompt="$1"
+  answer=""
+
+  if ! has_interactive_terminal; then
+    return 1
+  fi
+
+  printf '%s' "$prompt" > /dev/tty
+  if ! IFS= read -r answer < /dev/tty; then
+    return 1
+  fi
+  printf '%s' "$answer"
+}
+
+read_required_secret() {
+  prompt="$1"
+
+  if ! has_interactive_terminal; then
+    echo "Interactive API key input requires a terminal. Re-run interactively or pass --api-key." >&2
+    exit 2
+  fi
+
+  while :; do
+    printf '%s' "$prompt" > /dev/tty
+    stty -echo < /dev/tty
+    trap 'stty echo < /dev/tty; printf "\n" > /dev/tty' HUP INT TERM EXIT
+    IFS= read -r secret < /dev/tty || true
+    stty echo < /dev/tty
+    trap - HUP INT TERM EXIT
+    printf '\n' > /dev/tty
+
+    secret=$(trim_value "$secret")
+    if [ -n "$secret" ]; then
+      printf '%s' "$secret"
+      return
+    fi
+
+    printf '[warn] API key cannot be empty. Press Ctrl+C to cancel.\n' > /dev/tty
+  done
+}
+
+has_usable_key_file() {
+  [ -f "$1" ] && [ -n "$(tr -d '[:space:]' < "$1")" ]
+}
+
 normalize_base_url() {
   value=$(printf '%s' "$1" | sed 's:/*$::')
   case "$value" in
@@ -61,16 +115,11 @@ shell_single_quote() {
 
 DEFAULT_BASE_URL="https://api.algomim.com/v1"
 if [ -z "$BASE_URL" ]; then
-  printf 'Algomim API base URL [%s]: ' "$DEFAULT_BASE_URL"
-  read -r entered_base_url
-  if [ -z "$entered_base_url" ]; then
-    BASE_URL="$DEFAULT_BASE_URL"
-  else
-    BASE_URL="$entered_base_url"
-  fi
+  BASE_URL="$DEFAULT_BASE_URL"
 fi
 
 BASE_URL=$(normalize_base_url "$BASE_URL")
+log "Using API base URL $BASE_URL"
 
 CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
 mkdir -p "$CODEX_HOME"
@@ -82,28 +131,32 @@ AUTH_SCRIPT_PATH="$CODEX_HOME/algomim-auth.sh"
 
 if [ "$SKIP_KEY" != "1" ]; then
   if [ -z "$API_KEY" ]; then
-    if [ -f "$KEY_PATH" ]; then
-      printf 'Existing Algomim key found. Reuse it? [Y/n]: '
-      read -r reuse
+    if has_usable_key_file "$KEY_PATH"; then
+      if reuse=$(read_prompt 'Existing Algomim key found. Reuse it? [Y/n]: '); then
+        :
+      else
+        reuse=""
+      fi
       case "$reuse" in
         n|N|no|NO|No)
-          printf 'Algomim API key: '
-          stty -echo
-          read -r API_KEY
-          stty echo
-          printf '\n'
+          API_KEY=$(read_required_secret 'New Algomim API key: ')
+          ;;
+        *)
+          log "Reusing existing API key."
           ;;
       esac
     else
-      printf 'Algomim API key: '
-      stty -echo
-      read -r API_KEY
-      stty echo
-      printf '\n'
+      API_KEY=$(read_required_secret 'Algomim API key: ')
     fi
   fi
 
   if [ -n "$API_KEY" ]; then
+    API_KEY=$(trim_value "$API_KEY")
+    if [ -z "$API_KEY" ]; then
+      echo "API key cannot be empty." >&2
+      exit 2
+    fi
+
     umask 077
     printf '%s' "$API_KEY" > "$KEY_PATH"
     chmod 600 "$KEY_PATH" 2>/dev/null || true
@@ -111,7 +164,7 @@ if [ "$SKIP_KEY" != "1" ]; then
   fi
 fi
 
-if [ ! -f "$KEY_PATH" ]; then
+if ! has_usable_key_file "$KEY_PATH"; then
   echo "[warn] No Algomim API key file found. Run this installer again without --skip-key before starting Codex." >&2
 fi
 

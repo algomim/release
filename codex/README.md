@@ -49,22 +49,39 @@ macOS/Linux:
 curl -fsSL https://raw.githubusercontent.com/algomim/release/main/codex/install.sh | sh
 ```
 
-The installer asks for:
+The installer uses `https://api.algomim.com/v1` and asks for an Algomim API
+key. The key is entered without being displayed in the terminal.
 
-- Algomim API base URL. Default: `https://api.algomim.com/v1`
-- Algomim API key.
-
-For a pilot endpoint:
-
-```powershell
-irm https://raw.githubusercontent.com/algomim/release/main/codex/install.ps1 | iex
-```
-
-When prompted, enter the provided URL, for example:
+When a usable key already exists, the installer asks:
 
 ```text
-https://example.ngrok-free.dev/v1
+Existing Algomim key found. Reuse it? [Y/n]
 ```
+
+Press `Enter` to keep the existing key. Enter `n` only when replacing it. A
+new key prompt does not accept an empty value, so pressing `Enter` cannot
+produce a broken keyless setup.
+
+For a pilot endpoint:
+download the installer and pass the provided URL explicitly:
+
+```powershell
+irm https://raw.githubusercontent.com/algomim/release/main/codex/install.ps1 -OutFile install.ps1
+.\install.ps1 -BaseUrl "https://example.ngrok-free.dev/v1"
+Remove-Item .\install.ps1
+```
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/algomim/release/main/codex/install.sh -o install.sh
+sh install.sh --base-url "https://example.ngrok-free.dev/v1"
+rm install.sh
+```
+
+## Update or repair
+
+Run the normal installer again. It overwrites only Algomim-owned profile,
+catalog, and auth-helper files. It preserves the existing API key by default
+and does not edit `~/.codex/config.toml`.
 
 ## Non-interactive install
 
@@ -117,7 +134,11 @@ Doctor checks:
 - Algomim model catalog exists.
 - Auth helper exists.
 - API key file exists.
-- `/v1/models` responds when network and credentials are valid.
+- The profile selects Algomim and uses the Responses wire API.
+- `/v1/models` responds and exposes `algomim` with the installed credentials.
+
+Doctor exits with a failure status when the API key is rejected, the endpoint
+cannot be reached, or the expected model is unavailable.
 
 ## Uninstall
 
