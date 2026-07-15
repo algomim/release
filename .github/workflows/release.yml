@@ -23,6 +23,9 @@ jobs:
       - name: Validate PowerShell lifecycle
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File tests/codex-credentials.ps1
+      - name: Validate PowerShell Algomim CLI
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tests/cli.ps1
       - name: Validate PowerShell update and rollback
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File tests/codex-update.ps1
@@ -44,6 +47,8 @@ jobs:
         run: node tests/codex-catalog.mjs
       - name: Validate POSIX lifecycle
         run: sh tests/codex-credentials.sh
+      - name: Validate POSIX Algomim CLI
+        run: sh tests/cli.sh
       - name: Validate POSIX update and rollback
         run: sh tests/codex-update.sh
 
@@ -60,14 +65,21 @@ jobs:
       - name: Validate release tag
         shell: powershell
         run: |
-          $contract = Get-Content -Raw codex/release.json | ConvertFrom-Json
-          $expected = "v$($contract.version)"
-          if ($env:GITHUB_REF_NAME -cne $expected) {
-            throw "Tag $env:GITHUB_REF_NAME does not match codex/release.json ($expected)."
+          $contracts = @(
+            Get-Content -Raw codex/release.json | ConvertFrom-Json
+            Get-Content -Raw cli/release.json | ConvertFrom-Json
+          )
+          foreach ($contract in $contracts) {
+            $expected = "v$($contract.version)"
+            if ($env:GITHUB_REF_NAME -cne $expected) {
+              throw "Tag $env:GITHUB_REF_NAME does not match a release contract ($expected)."
+            }
           }
       - name: Build release artifacts
         shell: powershell
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/build-release.ps1 -Version "${{ github.ref_name }}"
+        run: |
+          $version = $env:GITHUB_REF_NAME.Substring(1)
+          powershell -NoProfile -ExecutionPolicy Bypass -File tools/build-release.ps1 -Version $version
       - name: Publish immutable version assets
         shell: powershell
         env:
@@ -79,6 +91,8 @@ jobs:
             dist/SHA256SUMS `
             "dist/algomim-codex-windows-$tag.zip" `
             "dist/algomim-codex-posix-$tag.tar.gz" `
+            "dist/algomim-cli-windows-$tag.zip" `
+            "dist/algomim-cli-posix-$tag.tar.gz" `
             --verify-tag `
             --title "Algomim Release $env:GITHUB_REF_NAME" `
             --generate-notes `

@@ -10,6 +10,11 @@ function Assert-True {
   if (-not $Condition) { throw "Assertion failed: $Message" }
 }
 
+function Assert-Equal {
+  param([string] $Expected, [string] $Actual, [string] $Message)
+  if ($Expected -cne $Actual) { throw "Assertion failed: $Message" }
+}
+
 if ($Tag -notmatch '^v(\d+\.\d+\.\d+)$') {
   throw "Tag must use vMAJOR.MINOR.PATCH format."
 }
@@ -41,7 +46,8 @@ try {
       -ApiKey $key `
       -ReleaseRef $Tag `
       -ReleaseVersion $version `
-      -AlgomimHome $algomimHome *>&1 | Out-String)
+      -AlgomimHome $algomimHome `
+      -CliPathTarget Process *>&1 | Out-String)
 
   $integrationHome = Join-Path $algomimHome "integrations\codex"
   $credentialsPath = Join-Path $algomimHome "credentials"
@@ -50,6 +56,25 @@ try {
   Assert-True (Test-Path -LiteralPath $profilePath -PathType Leaf) "install writes the profile"
   Assert-True (Test-Path -LiteralPath $catalogPath -PathType Leaf) "install writes the catalog"
   Assert-True (-not $installOutput.Contains($key)) "install output does not expose the credential"
+  $cliPath = Join-Path $algomimHome "bin\algomim.ps1"
+  $cliStatePath = Join-Path $algomimHome "cli\state.json"
+  Assert-True (Test-Path -LiteralPath $cliPath -PathType Leaf) "install writes the Algomim CLI"
+  Assert-True (Test-Path -LiteralPath $cliStatePath -PathType Leaf) "install writes CLI state"
+  $versionOutput = (& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $cliPath version 2>&1 | Out-String)
+  Assert-True ($versionOutput.Contains("Algomim CLI $version ($Tag)")) "published CLI reports its immutable version"
+
+  $manifestPath = Join-Path $testRoot "manifest.json"
+  Invoke-WebRequest -Uri "https://github.com/algomim/release/releases/download/$Tag/manifest.json" -OutFile $manifestPath -UseBasicParsing
+  $manifest = Get-Content -Raw -LiteralPath $manifestPath | ConvertFrom-Json
+  $cliArtifact = $manifest.cliArtifacts.windows
+  Assert-True ($null -ne $cliArtifact -and $cliArtifact.format -eq "zip") "manifest advertises the Windows CLI artifact"
+  $cliArchive = Join-Path $testRoot ([string] $cliArtifact.file)
+  Invoke-WebRequest -Uri "https://github.com/algomim/release/releases/download/$Tag/$($cliArtifact.file)" -OutFile $cliArchive -UseBasicParsing
+  Assert-Equal ([string] $cliArtifact.sha256) ((Get-FileHash -LiteralPath $cliArchive -Algorithm SHA256).Hash.ToLowerInvariant()) "published CLI artifact matches its SHA-256"
+  $cliArchiveRoot = Join-Path $testRoot "cli-archive"
+  Expand-Archive -LiteralPath $cliArchive -DestinationPath $cliArchiveRoot
+  Assert-True (Test-Path -LiteralPath (Join-Path $cliArchiveRoot "cli\algomim.ps1") -PathType Leaf) "published CLI artifact contains the Windows implementation"
+  Assert-True (Test-Path -LiteralPath (Join-Path $cliArchiveRoot "cli\algomim.cmd") -PathType Leaf) "published CLI artifact contains the Windows dispatcher"
 
   & (Join-Path $integrationHome "doctor.ps1") `
     -CodexHome $codexHome `
@@ -58,10 +83,7 @@ try {
     -SkipApiCheck `
     -ThrowOnFailure
 
-  & (Join-Path $integrationHome "update.ps1") `
-    -AlgomimHome $algomimHome `
-    -Version $version `
-    -CheckOnly
+  & $cliPath codex update --check
 
   $credentialHash = (Get-FileHash -LiteralPath $credentialsPath -Algorithm SHA256).Hash
   $updateOutput = (& (Join-Path $integrationHome "update.ps1") `
@@ -74,34 +96,21 @@ try {
     (Get-FileHash -LiteralPath $credentialsPath -Algorithm SHA256).Hash -eq $credentialHash
   ) "update preserves the credential"
 
-  & (Join-Path $integrationHome "doctor.ps1") `
-    -CodexHome $codexHome `
-    -AlgomimHome $algomimHome `
-    -CredentialProfile default `
-    -SkipApiCheck `
-    -ThrowOnFailure
+  & $cliPath codex doctor --offline
 
-  & (Join-Path $integrationHome "uninstall.ps1") `
-    -CodexHome $codexHome `
-    -AlgomimHome $algomimHome `
-    -CredentialProfile default *> $null
+  & $cliPath codex uninstall *> $null
   Assert-True (-not (Test-Path -LiteralPath $profilePath)) "normal uninstall removes the profile"
   Assert-True (Test-Path -LiteralPath $credentialsPath -PathType Leaf) "normal uninstall preserves credentials"
+  Assert-True (Test-Path -LiteralPath $cliPath -PathType Leaf) "normal uninstall preserves the CLI"
 
-  $reinstallOutput = (& $installerPath `
-      -ReleaseRef $Tag `
-      -ReleaseVersion $version `
-      -AlgomimHome $algomimHome `
-      -CredentialProfile default *>&1 | Out-String)
+  $reinstallOutput = (& $cliPath codex install --profile default *>&1 | Out-String)
   Assert-True (Test-Path -LiteralPath $profilePath -PathType Leaf) "reinstall restores the profile"
   Assert-True (-not $reinstallOutput.Contains($key)) "reinstall output does not expose the credential"
 
-  & (Join-Path $integrationHome "uninstall.ps1") `
-    -CodexHome $codexHome `
-    -AlgomimHome $algomimHome `
-    -CredentialProfile default `
-    -RemoveCredential *> $null
+  & $cliPath codex uninstall *> $null
+  & $cliPath logout --profile default --yes *> $null
   Assert-True (-not (Test-Path -LiteralPath $credentialsPath)) "explicit removal deletes the final credential profile"
+  Assert-True (Test-Path -LiteralPath $cliPath -PathType Leaf) "logout preserves the CLI"
 
   Write-Host "[ok] Published $Tag Windows lifecycle passed."
 }

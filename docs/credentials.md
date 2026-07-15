@@ -68,7 +68,8 @@ Therefore:
 
 - Installing another integration reuses the same profile.
 - Uninstalling Codex removes Codex files but preserves Algomim credentials.
-- Credential deletion must be an explicit logout/removal action.
+- `algomim login` creates or rotates the selected profile.
+- `algomim logout` is the explicit credential deletion action.
 - Removing one named profile must preserve every other profile.
 - Rotating a key updates its profile without rewriting unrelated profiles.
 

@@ -2,10 +2,13 @@ param(
   [string] $BaseUrl = "",
   [string] $ApiKey = "",
   [string] $ReleaseRef = "",
-  [string] $ReleaseVersion = "0.1.2",
+  [string] $ReleaseVersion = "0.2.0",
   [string] $CredentialProfile = "",
   [string] $AlgomimHome = "",
   [switch] $SkipKey,
+  [switch] $SkipCliInstall,
+  [ValidateSet("User", "Process")]
+  [string] $CliPathTarget = "User",
   [switch] $RunDoctor
 )
 
@@ -35,29 +38,6 @@ function Normalize-BaseUrl {
   return $trimmed
 }
 
-function Assert-CredentialProfileName {
-  param([string] $Value)
-
-  if ($Value -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$') {
-    throw "Credential profile must start with a letter or number and contain at most 64 letters, numbers, dots, underscores, or hyphens."
-  }
-}
-
-function Normalize-ApiKey {
-  param([string] $Value)
-
-  $normalized = $Value.Trim()
-  if ([string]::IsNullOrWhiteSpace($normalized)) {
-    throw "API key cannot be empty."
-  }
-
-  if ($normalized -match '[\x00-\x1F\x7F]') {
-    throw "API key cannot contain control characters."
-  }
-
-  return $normalized
-}
-
 function Escape-TomlString {
   param([string] $Value)
   return $Value.Replace("\", "\\").Replace('"', '\"')
@@ -66,130 +46,6 @@ function Escape-TomlString {
 function Escape-PowerShellSingleQuotedString {
   param([string] $Value)
   return $Value.Replace("'", "''")
-}
-
-function Read-SecretPlainText {
-  param([string] $Prompt)
-
-  $secure = Read-Host $Prompt -AsSecureString
-  $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
-  try {
-    return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
-  }
-  finally {
-    if ($bstr -ne [IntPtr]::Zero) {
-      [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
-    }
-  }
-}
-
-function Read-RequiredSecretPlainText {
-  param([string] $Prompt)
-
-  while ($true) {
-    $value = Read-SecretPlainText $Prompt
-    if (-not [string]::IsNullOrWhiteSpace($value)) {
-      return Normalize-ApiKey $value
-    }
-
-    Write-Warning "API key cannot be empty. Press Ctrl+C to cancel."
-  }
-}
-
-function Get-CredentialApiKey {
-  param(
-    [string] $Path,
-    [string] $Profile
-  )
-
-  if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
-    return $null
-  }
-
-  $section = ""
-  $value = $null
-  foreach ($line in [System.IO.File]::ReadAllLines($Path)) {
-    $trimmed = $line.Trim()
-    if ($trimmed.Length -eq 0 -or $trimmed.StartsWith("#") -or $trimmed.StartsWith(";")) {
-      continue
-    }
-
-    if ($trimmed -match '^\[([^\[\]]+)\]$') {
-      $section = $Matches[1].Trim()
-      continue
-    }
-
-    if ($section -eq $Profile -and $trimmed -match '^api_key\s*=\s*(.*)$') {
-      if ($null -ne $value) {
-        throw "Credential profile '$Profile' contains more than one api_key entry."
-      }
-
-      $value = Normalize-ApiKey $Matches[1]
-    }
-  }
-
-  return $value
-}
-
-function Protect-CredentialDirectory {
-  param([string] $Path)
-
-  $currentUserSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-  & icacls.exe $Path /inheritance:r /grant:r "*$currentUserSid`:(OI)(CI)(F)" | Out-Null
-  if ($LASTEXITCODE -ne 0) {
-    throw "Could not secure Algomim credential directory: $Path"
-  }
-}
-
-function Protect-CredentialFile {
-  param([string] $Path)
-
-  $currentUserSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-  & icacls.exe $Path /inheritance:r /grant:r "*$currentUserSid`:(F)" | Out-Null
-  if ($LASTEXITCODE -ne 0) {
-    throw "Could not secure Algomim credentials file: $Path"
-  }
-}
-
-function Write-SecureTextFileAtomically {
-  param(
-    [string] $Path,
-    [string] $Content
-  )
-
-  $directory = Split-Path -Parent $Path
-  New-Item -ItemType Directory -Force -Path $directory | Out-Null
-  Protect-CredentialDirectory $directory
-
-  if ((Test-Path -LiteralPath $Path) -and ((Get-Item -LiteralPath $Path -Force).Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
-    throw "Credential file cannot be a symbolic link or reparse point: $Path"
-  }
-
-  $temporaryPath = Join-Path $directory (".credentials.{0}.tmp" -f [Guid]::NewGuid().ToString("N"))
-  $backupPath = Join-Path $directory (".credentials.{0}.bak" -f [Guid]::NewGuid().ToString("N"))
-  try {
-    $utf8WithoutBom = New-Object System.Text.UTF8Encoding($false)
-    [System.IO.File]::WriteAllText($temporaryPath, $Content, $utf8WithoutBom)
-    Protect-CredentialFile $temporaryPath
-
-    if (Test-Path -LiteralPath $Path) {
-      [System.IO.File]::Replace($temporaryPath, $Path, $backupPath)
-      Remove-Item -LiteralPath $backupPath -Force
-    }
-    else {
-      [System.IO.File]::Move($temporaryPath, $Path)
-    }
-
-    Protect-CredentialFile $Path
-  }
-  finally {
-    if (Test-Path -LiteralPath $temporaryPath) {
-      Remove-Item -LiteralPath $temporaryPath -Force
-    }
-    if (Test-Path -LiteralPath $backupPath) {
-      Remove-Item -LiteralPath $backupPath -Force
-    }
-  }
 }
 
 function Write-Utf8TextFileAtomically {
@@ -202,7 +58,7 @@ function Write-Utf8TextFileAtomically {
   $directory = Split-Path -Parent $Path
   New-Item -ItemType Directory -Force -Path $directory | Out-Null
   if ($Private) {
-    Protect-CredentialDirectory $directory
+    Protect-AlgomimCredentialDirectory $directory
   }
 
   if ((Test-Path -LiteralPath $Path) -and ((Get-Item -LiteralPath $Path -Force).Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
@@ -215,7 +71,7 @@ function Write-Utf8TextFileAtomically {
     $utf8WithoutBom = New-Object System.Text.UTF8Encoding($false)
     [System.IO.File]::WriteAllText($temporaryPath, $Content, $utf8WithoutBom)
     if ($Private) {
-      Protect-CredentialFile $temporaryPath
+      Protect-AlgomimCredentialFile $temporaryPath
     }
 
     if (Test-Path -LiteralPath $Path) {
@@ -227,7 +83,7 @@ function Write-Utf8TextFileAtomically {
     }
 
     if ($Private) {
-      Protect-CredentialFile $Path
+      Protect-AlgomimCredentialFile $Path
     }
   }
   finally {
@@ -249,7 +105,7 @@ function Copy-FileAtomically {
   $directory = Split-Path -Parent $Destination
   New-Item -ItemType Directory -Force -Path $directory | Out-Null
   if ($Private) {
-    Protect-CredentialDirectory $directory
+    Protect-AlgomimCredentialDirectory $directory
   }
   if ((Test-Path -LiteralPath $Destination) -and ((Get-Item -LiteralPath $Destination -Force).Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
     throw "Refusing to replace a symbolic link or reparse point: $Destination"
@@ -260,7 +116,7 @@ function Copy-FileAtomically {
   try {
     [System.IO.File]::WriteAllBytes($temporaryPath, [System.IO.File]::ReadAllBytes($Source))
     if ($Private) {
-      Protect-CredentialFile $temporaryPath
+      Protect-AlgomimCredentialFile $temporaryPath
     }
 
     if (Test-Path -LiteralPath $Destination) {
@@ -271,7 +127,7 @@ function Copy-FileAtomically {
       [System.IO.File]::Move($temporaryPath, $Destination)
     }
     if ($Private) {
-      Protect-CredentialFile $Destination
+      Protect-AlgomimCredentialFile $Destination
     }
   }
   finally {
@@ -304,6 +160,90 @@ function Install-ReleaseFile {
   }
   finally {
     if (Test-Path -LiteralPath $downloadPath) {
+      Remove-Item -LiteralPath $downloadPath -Force
+    }
+  }
+}
+
+function Install-SharedReleaseFile {
+  param(
+    [string] $Name,
+    [string] $Destination,
+    [string] $Ref
+  )
+
+  $localCandidates = @()
+  if ($PSScriptRoot) {
+    $localCandidates += (Join-Path $PSScriptRoot $Name)
+    $localCandidates += (Join-Path (Split-Path -Parent $PSScriptRoot) "shared\$Name")
+  }
+  foreach ($candidate in $localCandidates) {
+    if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+      Copy-FileAtomically -Source $candidate -Destination $Destination
+      return
+    }
+  }
+
+  $downloadPath = Join-Path ([System.IO.Path]::GetTempPath()) ("algomim-shared-{0}-{1}" -f [Guid]::NewGuid().ToString("N"), $Name)
+  try {
+    Invoke-WebRequest -Uri "https://raw.githubusercontent.com/algomim/release/$Ref/shared/$Name" -OutFile $downloadPath -UseBasicParsing
+    Copy-FileAtomically -Source $downloadPath -Destination $Destination
+  }
+  finally {
+    if (Test-Path -LiteralPath $downloadPath) { Remove-Item -LiteralPath $downloadPath -Force }
+  }
+}
+
+function Resolve-CredentialStoreSource {
+  param([string] $Ref)
+
+  $script:credentialStoreSourceIsTemporary = $false
+  if ($PSScriptRoot) {
+    foreach ($candidate in @(
+        (Join-Path $PSScriptRoot "credential-store.ps1"),
+        (Join-Path (Split-Path -Parent $PSScriptRoot) "shared\credential-store.ps1")
+      )) {
+      if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }
+    }
+  }
+  $downloadPath = Join-Path ([System.IO.Path]::GetTempPath()) ("algomim-credential-store-{0}.ps1" -f [Guid]::NewGuid().ToString("N"))
+  try {
+    Invoke-WebRequest -Uri "https://raw.githubusercontent.com/algomim/release/$Ref/shared/credential-store.ps1" -OutFile $downloadPath -UseBasicParsing
+    $script:credentialStoreSourceIsTemporary = $true
+    return $downloadPath
+  }
+  catch {
+    if (Test-Path -LiteralPath $downloadPath) { Remove-Item -LiteralPath $downloadPath -Force }
+    throw
+  }
+}
+
+function Invoke-AlgomimCliInstaller {
+  param(
+    [string] $Ref,
+    [string] $Version,
+    [string] $TargetHome,
+    [string] $PathTarget
+  )
+
+  $installerPath = ""
+  if ($PSScriptRoot) {
+    $candidate = Join-Path (Split-Path -Parent $PSScriptRoot) "cli\install.ps1"
+    if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+      $installerPath = $candidate
+    }
+  }
+  $downloadPath = ""
+  try {
+    if ([string]::IsNullOrWhiteSpace($installerPath)) {
+      $downloadPath = Join-Path ([System.IO.Path]::GetTempPath()) ("algomim-cli-install-{0}.ps1" -f [Guid]::NewGuid().ToString("N"))
+      Invoke-WebRequest -Uri "https://raw.githubusercontent.com/algomim/release/$Ref/cli/install.ps1" -OutFile $downloadPath -UseBasicParsing
+      $installerPath = $downloadPath
+    }
+    & $installerPath -AlgomimHome $TargetHome -ReleaseRef $Ref -ReleaseVersion $Version -PathTarget $PathTarget
+  }
+  finally {
+    if ($downloadPath -and (Test-Path -LiteralPath $downloadPath)) {
       Remove-Item -LiteralPath $downloadPath -Force
     }
   }
@@ -345,77 +285,6 @@ function Install-ModelCatalog {
   }
 }
 
-function Set-CredentialApiKey {
-  param(
-    [string] $Path,
-    [string] $Profile,
-    [string] $Value
-  )
-
-  $normalized = Normalize-ApiKey $Value
-  $sourceLines = if (Test-Path -LiteralPath $Path -PathType Leaf) {
-    [System.IO.File]::ReadAllLines($Path)
-  }
-  else {
-    @()
-  }
-
-  $output = New-Object 'System.Collections.Generic.List[string]'
-  $inTargetSection = $false
-  $targetSectionFound = $false
-  $keyWritten = $false
-
-  foreach ($line in $sourceLines) {
-    $trimmed = $line.Trim()
-    if ($trimmed -match '^\[([^\[\]]+)\]$') {
-      if ($inTargetSection -and -not $keyWritten) {
-        $output.Add("api_key = $normalized")
-        $keyWritten = $true
-      }
-
-      $section = $Matches[1].Trim()
-      $inTargetSection = $section -eq $Profile
-      if ($inTargetSection) {
-        $targetSectionFound = $true
-      }
-
-      $output.Add($line)
-      continue
-    }
-
-    if ($inTargetSection -and $trimmed -match '^api_key\s*=') {
-      if (-not $keyWritten) {
-        $output.Add("api_key = $normalized")
-        $keyWritten = $true
-      }
-      continue
-    }
-
-    $output.Add($line)
-  }
-
-  if ($inTargetSection -and -not $keyWritten) {
-    $output.Add("api_key = $normalized")
-    $keyWritten = $true
-  }
-
-  if (-not $targetSectionFound) {
-    if ($output.Count -gt 0 -and $output[$output.Count - 1].Length -gt 0) {
-      $output.Add("")
-    }
-    $output.Add("[$Profile]")
-    $output.Add("api_key = $normalized")
-  }
-
-  $content = [string]::Join([Environment]::NewLine, $output) + [Environment]::NewLine
-  Write-SecureTextFileAtomically -Path $Path -Content $content
-
-  $stored = Get-CredentialApiKey -Path $Path -Profile $Profile
-  if ($stored -cne $normalized) {
-    throw "Credential verification failed after writing profile '$Profile'."
-  }
-}
-
 function Get-LegacyApiKey {
   param([string] $Path)
 
@@ -428,7 +297,7 @@ function Get-LegacyApiKey {
     return $null
   }
 
-  return Normalize-ApiKey $value
+  return Normalize-AlgomimApiKey $value
 }
 
 $defaultBaseUrl = "https://api.algomim.com/v1"
@@ -447,11 +316,21 @@ if ($ReleaseRef -notmatch '^[A-Za-z0-9._/-]+$') {
   throw "ReleaseRef contains unsupported characters."
 }
 
+$credentialStoreSource = Resolve-CredentialStoreSource $ReleaseRef
+try {
+  . $credentialStoreSource
+}
+finally {
+  if ($script:credentialStoreSourceIsTemporary) {
+    Remove-Item -LiteralPath $credentialStoreSource -Force -ErrorAction SilentlyContinue
+  }
+}
+
 if ([string]::IsNullOrWhiteSpace($CredentialProfile)) {
   $CredentialProfile = if ($env:ALGOMIM_PROFILE) { $env:ALGOMIM_PROFILE } else { "default" }
 }
 $CredentialProfile = $CredentialProfile.Trim()
-Assert-CredentialProfileName $CredentialProfile
+Assert-AlgomimCredentialProfileName $CredentialProfile
 
 if ([string]::IsNullOrWhiteSpace($AlgomimHome)) {
   $AlgomimHome = if ($env:ALGOMIM_HOME) { $env:ALGOMIM_HOME } else { Join-Path $HOME ".algomim" }
@@ -474,35 +353,35 @@ Write-Step "Using credential profile '$CredentialProfile' in $credentialsPath"
 New-Item -ItemType Directory -Force -Path $codexHome | Out-Null
 
 $explicitApiKey = -not [string]::IsNullOrWhiteSpace($ApiKey)
-$storedApiKey = Get-CredentialApiKey -Path $credentialsPath -Profile $CredentialProfile
+$storedApiKey = Get-AlgomimCredentialApiKey -Path $credentialsPath -Profile $CredentialProfile
 $legacyApiKey = Get-LegacyApiKey -Path $legacyKeyPath
 
 if (-not $SkipKey) {
   if ($explicitApiKey) {
-    Set-CredentialApiKey -Path $credentialsPath -Profile $CredentialProfile -Value $ApiKey
-    $storedApiKey = Get-CredentialApiKey -Path $credentialsPath -Profile $CredentialProfile
+    Set-AlgomimCredentialApiKey -Path $credentialsPath -Profile $CredentialProfile -Value $ApiKey
+    $storedApiKey = Get-AlgomimCredentialApiKey -Path $credentialsPath -Profile $CredentialProfile
     Write-Step "Stored credential profile '$CredentialProfile' at $credentialsPath"
   }
   elseif ($null -ne $storedApiKey) {
-    Protect-CredentialDirectory $AlgomimHome
-    Protect-CredentialFile $credentialsPath
+    Protect-AlgomimCredentialDirectory $AlgomimHome
+    Protect-AlgomimCredentialFile $credentialsPath
     Write-Step "Reusing credential profile '$CredentialProfile'."
   }
   elseif ($null -ne $legacyApiKey) {
-    Set-CredentialApiKey -Path $credentialsPath -Profile $CredentialProfile -Value $legacyApiKey
-    $storedApiKey = Get-CredentialApiKey -Path $credentialsPath -Profile $CredentialProfile
+    Set-AlgomimCredentialApiKey -Path $credentialsPath -Profile $CredentialProfile -Value $legacyApiKey
+    $storedApiKey = Get-AlgomimCredentialApiKey -Path $credentialsPath -Profile $CredentialProfile
     Remove-Item -LiteralPath $legacyKeyPath -Force
     $legacyApiKey = $null
     Write-Step "Migrated the legacy Codex key to shared Algomim credentials."
   }
   elseif (-not [string]::IsNullOrWhiteSpace($env:ALGOMIM_API_KEY)) {
-    [void] (Normalize-ApiKey $env:ALGOMIM_API_KEY)
+    [void] (Normalize-AlgomimApiKey $env:ALGOMIM_API_KEY)
     Write-Step "Using ALGOMIM_API_KEY from the environment without persisting it."
   }
   else {
-    $ApiKey = Read-RequiredSecretPlainText "Algomim API key"
-    Set-CredentialApiKey -Path $credentialsPath -Profile $CredentialProfile -Value $ApiKey
-    $storedApiKey = Get-CredentialApiKey -Path $credentialsPath -Profile $CredentialProfile
+    $ApiKey = Read-AlgomimRequiredSecretPlainText "Algomim API key"
+    Set-AlgomimCredentialApiKey -Path $credentialsPath -Profile $CredentialProfile -Value $ApiKey
+    $storedApiKey = Get-AlgomimCredentialApiKey -Path $credentialsPath -Profile $CredentialProfile
     Write-Step "Stored credential profile '$CredentialProfile' at $credentialsPath"
   }
 
@@ -518,7 +397,7 @@ if (-not $SkipKey) {
 }
 
 $hasEnvironmentCredential = -not [string]::IsNullOrWhiteSpace($env:ALGOMIM_API_KEY)
-$storedApiKey = Get-CredentialApiKey -Path $credentialsPath -Profile $CredentialProfile
+$storedApiKey = Get-AlgomimCredentialApiKey -Path $credentialsPath -Profile $CredentialProfile
 if (-not $hasEnvironmentCredential -and $null -eq $storedApiKey) {
   Write-Warning "No Algomim credential is available. Set ALGOMIM_API_KEY or run this installer again without -SkipKey."
 }
@@ -615,10 +494,11 @@ Write-Utf8TextFileAtomically -Path $profilePath -Content ($profile + [Environmen
 Write-Step "Installed Codex profile at $profilePath"
 
 New-Item -ItemType Directory -Force -Path $integrationHome | Out-Null
-Protect-CredentialDirectory $integrationHome
+Protect-AlgomimCredentialDirectory $integrationHome
 foreach ($releaseFile in @("install.ps1", "update.ps1", "doctor.ps1", "uninstall.ps1", "release.json")) {
   Install-ReleaseFile -Name $releaseFile -Destination (Join-Path $integrationHome $releaseFile) -Ref $ReleaseRef
 }
+Install-SharedReleaseFile -Name "credential-store.ps1" -Destination (Join-Path $integrationHome "credential-store.ps1") -Ref $ReleaseRef
 
 $now = [DateTimeOffset]::UtcNow.ToString("o")
 $installedAt = $now
@@ -650,6 +530,10 @@ $state = [ordered] @{
 $stateJson = $state | ConvertTo-Json
 Write-Utf8TextFileAtomically -Path $statePath -Content ($stateJson + [Environment]::NewLine) -Private
 Write-Step "Recorded Codex integration version $ReleaseVersion at $statePath"
+
+if (-not $SkipKey -and -not $SkipCliInstall) {
+  Invoke-AlgomimCliInstaller -Ref $ReleaseRef -Version $ReleaseVersion -TargetHome $AlgomimHome -PathTarget $CliPathTarget
+}
 
 if (-not (Get-Command codex -ErrorAction SilentlyContinue)) {
   Write-Warning "Codex CLI was not found on PATH. Install Codex before running codex --profile algomim."

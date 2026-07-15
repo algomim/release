@@ -55,10 +55,14 @@ EOF
 
 copy_posix_bundle() {
   destination="$1"
-  mkdir -p "$destination/codex"
+  mkdir -p "$destination/codex" "$destination/cli" "$destination/shared"
   for name in algomim-models.json algomim-models.lock.json install.sh update.sh doctor.sh uninstall.sh release.json; do
     cp "$REPO_ROOT/codex/$name" "$destination/codex/$name"
   done
+  for name in algomim.sh install.sh release.json; do
+    cp "$REPO_ROOT/cli/$name" "$destination/cli/$name"
+  done
+  cp "$REPO_ROOT/shared/credential-store.sh" "$destination/shared/credential-store.sh"
 }
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
@@ -95,7 +99,7 @@ unset ALGOMIM_API_KEY ALGOMIM_PROFILE 2>/dev/null || true
 
 copy_posix_bundle "$STAGE/good"
 GOOD_ARTIFACT="algomim-codex-posix-$CURRENT_TAG.tar.gz"
-tar -czf "$ARTIFACTS/$GOOD_ARTIFACT" -C "$STAGE/good" codex
+tar -czf "$ARTIFACTS/$GOOD_ARTIFACT" -C "$STAGE/good" codex cli shared
 GOOD_HASH=$(sha256_file "$ARTIFACTS/$GOOD_ARTIFACT")
 write_manifest "$CURRENT_VERSION" "$GOOD_ARTIFACT" "$GOOD_HASH" "$ARTIFACTS/manifest.json"
 
@@ -135,7 +139,7 @@ sed "s/\"version\": \"$CURRENT_VERSION\"/\"version\": \"$INVALID_VERSION\"/; s/\
 mv "$STAGE/bad/codex/release.json.tmp" "$STAGE/bad/codex/release.json"
 printf '{\n  "models": []\n}\n' > "$STAGE/bad/codex/algomim-models.json"
 BAD_ARTIFACT="algomim-codex-posix-$INVALID_TAG.tar.gz"
-tar -czf "$ARTIFACTS/$BAD_ARTIFACT" -C "$STAGE/bad" codex
+tar -czf "$ARTIFACTS/$BAD_ARTIFACT" -C "$STAGE/bad" codex cli shared
 BAD_HASH=$(sha256_file "$ARTIFACTS/$BAD_ARTIFACT")
 write_manifest "$INVALID_VERSION" "$BAD_ARTIFACT" "$BAD_HASH" "$ARTIFACTS/bad-manifest.json"
 

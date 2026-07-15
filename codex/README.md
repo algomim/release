@@ -41,6 +41,15 @@ Versioned lifecycle files and non-secret installation state are stored under:
   uninstall.ps1 | uninstall.sh
 ```
 
+The product CLI is installed separately from the Codex integration:
+
+```text
+~/.algomim/bin/algomim.cmd  # Windows dispatcher
+~/.algomim/bin/algomim.ps1 # Windows implementation
+~/.algomim/bin/algomim     # macOS/Linux
+~/.algomim/cli/state.json
+```
+
 The API key is shared across Algomim integrations and is stored separately:
 
 ```text
@@ -75,19 +84,23 @@ See the cross-client credential contract in
 Windows PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/algomim/release/v0.1.2/codex/install.ps1 | iex
+irm https://raw.githubusercontent.com/algomim/release/v0.2.0/codex/install.ps1 | iex
 ```
 
 macOS/Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.1.2/codex/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.2.0/codex/install.sh | sh
 ```
 
 The installer uses `https://api.algomim.com/v1`. On the first install it asks
 for an Algomim API key without displaying the input. Later installs reuse the
-existing `default` credential automatically. Replace a key only by passing a
-new key explicitly or by using a future login/rotation command.
+existing `default` credential automatically. It also installs the `algomim`
+CLI and adds `~/.algomim/bin` to PATH idempotently. On macOS/Linux, open a new
+shell after installation so the managed PATH block is loaded.
+
+Existing `v0.1.2` users run the `v0.2.0` one-liner once. Their credential is
+preserved while the CLI and current Codex integration are installed.
 
 Existing pilot installations are migrated automatically from
 `~/.codex/algomim.key` to `~/.algomim/credentials`. The old file is deleted only
@@ -98,27 +111,23 @@ For a pilot endpoint:
 download the installer and pass the provided URL explicitly:
 
 ```powershell
-irm https://raw.githubusercontent.com/algomim/release/v0.1.2/codex/install.ps1 -OutFile install.ps1
+irm https://raw.githubusercontent.com/algomim/release/v0.2.0/codex/install.ps1 -OutFile install.ps1
 .\install.ps1 -BaseUrl "https://example.ngrok-free.dev/v1"
 Remove-Item .\install.ps1
 ```
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.1.2/codex/install.sh -o install.sh
+curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.2.0/codex/install.sh -o install.sh
 sh install.sh --base-url "https://example.ngrok-free.dev/v1"
 rm install.sh
 ```
 
 ## Update or repair
 
-Run the installed updater:
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File "$HOME\.algomim\integrations\codex\update.ps1"
-```
+Use the installed CLI:
 
 ```sh
-sh "$HOME/.algomim/integrations/codex/update.sh"
+algomim codex update
 ```
 
 The updater downloads the latest GitHub Release manifest, verifies the
@@ -128,33 +137,31 @@ state. Shared credentials are never changed by update.
 
 Check without installing:
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File "$HOME\.algomim\integrations\codex\update.ps1" -CheckOnly
-```
-
 ```sh
-sh "$HOME/.algomim/integrations/codex/update.sh" --check
+algomim codex update --check
 ```
 
 Re-running the same versioned installer repairs the current version without
-selecting a newer release.
+selecting a newer release. The CLI can also repair the installed integration:
+
+```sh
+algomim codex install
+```
+
+There is no silent or background update process.
 
 ## Credential profiles and environment overrides
 
 The default profile is named `default`. A separate named profile can be
-installed without replacing it:
-
-```powershell
-irm https://raw.githubusercontent.com/algomim/release/v0.1.2/codex/install.ps1 -OutFile install.ps1
-.\install.ps1 -CredentialProfile "work"
-Remove-Item .\install.ps1
-```
+created and selected without replacing it:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.1.2/codex/install.sh -o install.sh
-sh install.sh --credential-profile work
-rm install.sh
+algomim login --profile work
+algomim codex install --profile work
 ```
+
+Running `algomim login` again rotates the selected profile's key without
+rewriting unrelated credential profiles.
 
 Credential resolution order is:
 
@@ -175,7 +182,7 @@ automation.
 Windows:
 
 ```powershell
-irm https://raw.githubusercontent.com/algomim/release/v0.1.2/codex/install.ps1 -OutFile install.ps1
+irm https://raw.githubusercontent.com/algomim/release/v0.2.0/codex/install.ps1 -OutFile install.ps1
 .\install.ps1 -ApiKey "sk-..."
 Remove-Item .\install.ps1
 ```
@@ -183,7 +190,7 @@ Remove-Item .\install.ps1
 macOS/Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.1.2/codex/install.sh -o install.sh
+curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.2.0/codex/install.sh -o install.sh
 sh install.sh --api-key "sk-..."
 rm install.sh
 ```
@@ -198,16 +205,8 @@ Use `/model` inside Codex to confirm `algomim` is selected.
 
 ## Doctor
 
-Windows:
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File "$HOME\.algomim\integrations\codex\doctor.ps1"
-```
-
-macOS/Linux:
-
 ```sh
-sh "$HOME/.algomim/integrations/codex/doctor.sh"
+algomim codex doctor
 ```
 
 Doctor checks:
@@ -225,40 +224,32 @@ Doctor checks:
 Doctor exits with a failure status when the API key is rejected, the endpoint
 cannot be reached, or the expected model is unavailable.
 
-## Uninstall
-
-Windows:
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File "$HOME\.algomim\integrations\codex\uninstall.ps1"
-```
-
-macOS/Linux:
+To validate only local files, credentials, and configuration without a network
+request:
 
 ```sh
-sh "$HOME/.algomim/integrations/codex/uninstall.sh"
+algomim codex doctor --offline
+```
+
+## Uninstall
+
+```sh
+algomim codex uninstall
 ```
 
 Uninstall removes the Algomim Codex profile, catalog, and auth helper. It does
 not change the user's normal Codex/OpenAI configuration, and it preserves the
-shared Algomim credential so another integration can continue to use it.
+shared Algomim credential and the `algomim` CLI so another integration can
+continue to use them.
 
-To explicitly remove the selected credential profile as well, download the
-script and opt in:
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass `
-  -File "$HOME\.algomim\integrations\codex\uninstall.ps1" `
-  -RemoveCredential
-```
+Credential deletion is a separate explicit action:
 
 ```sh
-sh "$HOME/.algomim/integrations/codex/uninstall.sh" --remove-credential
+algomim logout
+algomim logout --profile work
 ```
 
-With named credentials, pass `-CredentialProfile "work"` or
-`--credential-profile work`. Only that profile is removed; other profiles are
-preserved.
+Only the selected profile is removed; other profiles are preserved.
 
 ## Why there is a model catalog
 
@@ -280,10 +271,10 @@ tool handling, and provider routing live behind the Algomim API.
 | Symptom                                | Meaning                                                                  | Fix                                                           |
 | -------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------- |
 | `/model` does not show Algomim         | Profile or catalog was not loaded                                        | Restart Codex with `codex --profile algomim`                  |
-| `Model metadata for algomim not found` | Catalog path is wrong or missing                                         | Run installer again, then restart Codex                       |
+| `Model metadata for algomim not found` | Catalog path is wrong or missing                                         | Run `algomim codex install`, then restart Codex               |
 | `Configured service tier priority...`  | A previous OpenAI tier leaked into the profile                           | Ensure `service_tier = "default"` is in `algomim.config.toml` |
 | `tools must contain only...`           | Catalog/profile is stale or the backend is older than the Codex contract | Update Algomim setup and retry                                |
-| `401`                                  | API key is missing, invalid, or revoked                                  | Rotate the selected Algomim credential and retry              |
+| `401`                                  | API key is missing, invalid, or revoked                                  | Run `algomim login` and retry                                 |
 | `403`                                  | API user is suspended or expired                                         | Contact the Algomim operator                                  |
 | `404`                                  | Model is not visible for this key                                        | Check the key's allowed models                                |
 | `429`                                  | Token quota or active request limit reached                              | Ask the operator to inspect usage                             |

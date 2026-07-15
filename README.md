@@ -34,22 +34,44 @@ release repository. See
 Windows PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/algomim/release/v0.1.2/codex/install.ps1 | iex
+irm https://raw.githubusercontent.com/algomim/release/v0.2.0/codex/install.ps1 | iex
 ```
 
 macOS/Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.1.2/codex/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.2.0/codex/install.sh | sh
 ```
 
-Then start Codex with the Algomim profile:
+The installer asks for the Algomim API key without echoing it, installs the
+Codex integration, and adds the `algomim` shell CLI to the user's PATH. On
+macOS/Linux, open a new shell after installation. Then start Codex with the
+Algomim profile:
 
 ```sh
 codex --profile algomim
 ```
 
 Plain `codex` keeps using the user's existing OpenAI configuration.
+
+The installed CLI owns explicit lifecycle operations:
+
+```text
+algomim login
+algomim logout
+algomim version
+algomim help
+algomim codex install
+algomim codex update
+algomim codex update --check
+algomim codex doctor
+algomim codex doctor --offline
+algomim codex uninstall
+```
+
+There is no background updater. `algomim codex uninstall` removes only the
+Codex integration and preserves the shared API key; `algomim logout` removes
+the selected credential profile.
 
 Release packaging, checksums, installed state, update, and rollback are
 documented in
@@ -71,6 +93,6 @@ hand-authored model metadata.
 - Keep API keys in the shared Algomim credential store, never in a
   client-owned directory.
 - Prefer versioned release URLs for customer-facing instructions once a release
-  is cut, for example `/v0.1.2/codex/install.ps1`.
+  is cut, for example `/v0.2.0/codex/install.ps1`.
 - Never move an existing release tag or replace published release assets; ship
   a new semantic version instead.

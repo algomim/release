@@ -25,44 +25,6 @@ function Check-Fail {
   $script:failed = $true
 }
 
-function Get-CredentialApiKey {
-  param(
-    [string] $Path,
-    [string] $Profile
-  )
-
-  if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
-    return $null
-  }
-
-  $section = ""
-  $value = $null
-  foreach ($line in [System.IO.File]::ReadAllLines($Path)) {
-    $trimmed = $line.Trim()
-    if ($trimmed.Length -eq 0 -or $trimmed.StartsWith("#") -or $trimmed.StartsWith(";")) {
-      continue
-    }
-    if ($trimmed -match '^\[([^\[\]]+)\]$') {
-      $section = $Matches[1].Trim()
-      continue
-    }
-    if ($section -eq $Profile -and $trimmed -match '^api_key\s*=\s*(.*)$') {
-      if ($null -ne $value) {
-        throw "Credential profile '$Profile' contains duplicate api_key entries."
-      }
-      $value = $Matches[1].Trim()
-    }
-  }
-
-  if ([string]::IsNullOrWhiteSpace($value)) {
-    return $null
-  }
-  if ($value -match '[\x00-\x1F\x7F]') {
-    throw "Credential profile '$Profile' contains an invalid api_key."
-  }
-  return $value
-}
-
 function Test-CredentialFileAcl {
   param([string] $Path)
 
@@ -98,6 +60,18 @@ if ([string]::IsNullOrWhiteSpace($AlgomimHome)) {
 }
 $AlgomimHome = [System.IO.Path]::GetFullPath($AlgomimHome)
 $integrationHome = Join-Path $AlgomimHome "integrations\codex"
+$credentialHelperCandidates = @(
+  (Join-Path $integrationHome "credential-store.ps1"),
+  (Join-Path $AlgomimHome "cli\credential-store.ps1")
+)
+if ($PSScriptRoot) {
+  $credentialHelperCandidates += (Join-Path (Split-Path -Parent $PSScriptRoot) "shared\credential-store.ps1")
+}
+$credentialHelper = $credentialHelperCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+if ([string]::IsNullOrWhiteSpace($credentialHelper)) {
+  throw "Algomim credential helper is missing. Run the installer again."
+}
+. $credentialHelper
 $statePath = Join-Path $integrationHome "state.json"
 $state = $null
 if (Test-Path -LiteralPath $statePath -PathType Leaf) {
@@ -137,7 +111,10 @@ if ([string]::IsNullOrWhiteSpace($CredentialProfile)) {
 
 $CodexHome = [System.IO.Path]::GetFullPath($CodexHome)
 $CredentialProfile = $CredentialProfile.Trim()
-if ($CredentialProfile -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$') {
+try {
+  Assert-AlgomimCredentialProfileName $CredentialProfile
+}
+catch {
   Check-Fail "Credential profile name is invalid."
 }
 
@@ -264,7 +241,7 @@ if (-not [string]::IsNullOrWhiteSpace($env:ALGOMIM_API_KEY)) {
 }
 elseif (Test-Path -LiteralPath $credentialsPath -PathType Leaf) {
   try {
-    $token = Get-CredentialApiKey -Path $credentialsPath -Profile $CredentialProfile
+    $token = Get-AlgomimCredentialApiKey -Path $credentialsPath -Profile $CredentialProfile
     if ($null -eq $token) {
       Check-Fail "Credential profile '$CredentialProfile' is missing or empty in $credentialsPath"
     }

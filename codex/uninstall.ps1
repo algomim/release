@@ -8,94 +8,20 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-function Remove-CredentialProfile {
-  param(
-    [string] $Path,
-    [string] $Profile
-  )
-
-  if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
-    Write-Host "[algomim] Shared credentials file does not exist."
-    return
-  }
-
-  if ((Get-Item -LiteralPath $Path -Force).Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
-    throw "Credential file cannot be a symbolic link or reparse point: $Path"
-  }
-
-  $output = New-Object 'System.Collections.Generic.List[string]'
-  $inTargetSection = $false
-  $targetFound = $false
-  foreach ($line in [System.IO.File]::ReadAllLines($Path)) {
-    $trimmed = $line.Trim()
-    if ($trimmed -match '^\[([^\[\]]+)\]$') {
-      $section = $Matches[1].Trim()
-      $inTargetSection = $section -eq $Profile
-      if ($inTargetSection) {
-        $targetFound = $true
-        continue
-      }
-    }
-
-    if (-not $inTargetSection) {
-      $output.Add($line)
-    }
-  }
-
-  if (-not $targetFound) {
-    Write-Host "[algomim] Credential profile '$Profile' was not present."
-    return
-  }
-
-  $meaningfulLines = @($output | Where-Object {
-      $value = $_.Trim()
-      $value.Length -gt 0 -and -not $value.StartsWith("#") -and -not $value.StartsWith(";")
-    })
-  if ($meaningfulLines.Count -eq 0) {
-    Remove-Item -LiteralPath $Path -Force
-    Write-Host "[algomim] Removed credential profile '$Profile' and the empty credentials file."
-    return
-  }
-
-  while ($output.Count -gt 0 -and $output[$output.Count - 1].Trim().Length -eq 0) {
-    $output.RemoveAt($output.Count - 1)
-  }
-
-  $content = [string]::Join([Environment]::NewLine, $output) + [Environment]::NewLine
-  $directory = Split-Path -Parent $Path
-  $temporaryPath = Join-Path $directory (".credentials.{0}.tmp" -f [Guid]::NewGuid().ToString("N"))
-  $backupPath = Join-Path $directory (".credentials.{0}.bak" -f [Guid]::NewGuid().ToString("N"))
-  try {
-    $utf8WithoutBom = New-Object System.Text.UTF8Encoding($false)
-    [System.IO.File]::WriteAllText($temporaryPath, $content, $utf8WithoutBom)
-    $currentUserSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-    & icacls.exe $temporaryPath /inheritance:r /grant:r "*$currentUserSid`:(F)" | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-      throw "Could not secure the updated credentials file."
-    }
-    [System.IO.File]::Replace($temporaryPath, $Path, $backupPath)
-    Remove-Item -LiteralPath $backupPath -Force
-    & icacls.exe $Path /inheritance:r /grant:r "*$currentUserSid`:(F)" | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-      throw "Could not secure the updated credentials file."
-    }
-  }
-  finally {
-    if (Test-Path -LiteralPath $temporaryPath) {
-      Remove-Item -LiteralPath $temporaryPath -Force
-    }
-    if (Test-Path -LiteralPath $backupPath) {
-      Remove-Item -LiteralPath $backupPath -Force
-    }
-  }
-
-  Write-Host "[algomim] Removed credential profile '$Profile'."
-}
-
 if ([string]::IsNullOrWhiteSpace($AlgomimHome)) {
   $AlgomimHome = if ($env:ALGOMIM_HOME) { $env:ALGOMIM_HOME } else { Join-Path $HOME ".algomim" }
 }
 $AlgomimHome = [System.IO.Path]::GetFullPath($AlgomimHome)
+$credentialHelper = if ($PSScriptRoot -and (Test-Path -LiteralPath (Join-Path $PSScriptRoot "credential-store.ps1") -PathType Leaf)) {
+  Join-Path $PSScriptRoot "credential-store.ps1"
+}
+else {
+  Join-Path $AlgomimHome "cli\credential-store.ps1"
+}
+if (-not (Test-Path -LiteralPath $credentialHelper -PathType Leaf)) {
+  throw "Algomim credential helper is missing: $credentialHelper"
+}
+. $credentialHelper
 $integrationHome = [System.IO.Path]::GetFullPath((Join-Path $AlgomimHome "integrations\codex"))
 $statePath = Join-Path $integrationHome "state.json"
 $state = $null
@@ -163,7 +89,12 @@ if ($KeepKey) {
 $legacyKeyPath = Join-Path $CodexHome "algomim.key"
 $credentialsPath = Join-Path $AlgomimHome "credentials"
 if ($RemoveCredential) {
-  Remove-CredentialProfile -Path $credentialsPath -Profile $CredentialProfile
+  $credentialResult = Remove-AlgomimCredentialProfile -Path $credentialsPath -Profile $CredentialProfile
+  switch ($credentialResult) {
+    "missing" { Write-Host "[algomim] Credential profile '$CredentialProfile' was not present." }
+    "removed-empty" { Write-Host "[algomim] Removed credential profile '$CredentialProfile' and the empty credentials file." }
+    default { Write-Host "[algomim] Removed credential profile '$CredentialProfile'." }
+  }
   if (Test-Path -LiteralPath $legacyKeyPath) {
     Remove-Item -LiteralPath $legacyKeyPath -Force
     Write-Host "[algomim] Removed the legacy Codex key file."

@@ -40,6 +40,16 @@ Only files relevant to the client belong in that directory. Not every client
 requires every operating-system script. Missing lifecycle commands must be
 explained in the integration README.
 
+Cross-integration product assets have separate ownership:
+
+```text
+cli/       Shell command dispatch and CLI installation
+shared/    Credential-store primitives shared by integrations
+```
+
+The CLI delegates to each integration's installed lifecycle scripts. It does
+not reimplement client-specific install, update, doctor, or uninstall logic.
+
 ## Promotion requirements
 
 Before changing an integration from `future` to `pilot`:
@@ -69,6 +79,7 @@ All integrations use the credential ownership, resolution order, and lifecycle
 defined in [`credentials.md`](./credentials.md). Client directories may contain
 thin auth adapters, but they must not become an independent secret store.
 
-Shared implementation helpers should be extracted only after two integrations
-require the same behavior. Client-specific configuration formats remain
-separate.
+The credential store is the intentional shared primitive because every
+integration consumes the same product credential. Other helpers should be
+extracted only after two integrations require the same behavior.
+Client-specific configuration formats remain separate.

@@ -3,5 +3,6 @@ Thumbs.db
 *.log
 *.tmp
 .credential-test-*
+.cli-test-*
 .update-test-*
 dist/

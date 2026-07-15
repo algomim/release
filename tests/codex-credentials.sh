@@ -50,6 +50,7 @@ SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
 INSTALL="$REPO_ROOT/codex/install.sh"
 UNINSTALL="$REPO_ROOT/codex/uninstall.sh"
+. "$REPO_ROOT/shared/credential-store.sh"
 TEST_ROOT=$(mktemp -d)
 trap 'rm -rf "$TEST_ROOT"' HUP INT TERM EXIT
 
@@ -62,7 +63,14 @@ ALGOMIM_HOME="$TEST_ROOT/algomim"
 export CODEX_HOME ALGOMIM_HOME
 unset ALGOMIM_API_KEY ALGOMIM_PROFILE 2>/dev/null || true
 
-INSTALL_OUTPUT=$(sh "$INSTALL" --api-key "$DEFAULT_KEY" --credential-profile default 2>&1)
+INVALID_MULTILINE_KEY='sk-safe
+[injected]
+api_key = sk-injected'
+if algomim_api_key_normalize "$INVALID_MULTILINE_KEY" >/dev/null 2>&1; then
+  fail "credential normalization must reject embedded newlines"
+fi
+
+INSTALL_OUTPUT=$(sh "$INSTALL" --api-key "$DEFAULT_KEY" --credential-profile default --cli-path-target process 2>&1)
 CREDENTIALS="$ALGOMIM_HOME/credentials"
 assert_file "$CREDENTIALS" "fresh install must create shared credentials"
 assert_equal "$DEFAULT_KEY" "$(profile_key "$CREDENTIALS" default)" "default profile must be written"
@@ -87,9 +95,9 @@ fi
 STATE_PATH="$ALGOMIM_HOME/integrations/codex/state.json"
 assert_file "$STATE_PATH" "installer must record integration state"
 STATE_VERSION=$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$STATE_PATH")
-assert_equal "0.1.2" "$STATE_VERSION" "installer must record its release version"
+assert_equal "0.2.0" "$STATE_VERSION" "installer must record its release version"
 grep -F "$DEFAULT_KEY" "$STATE_PATH" >/dev/null 2>&1 && fail "installation state must not contain credential"
-for name in install.sh update.sh doctor.sh uninstall.sh release.json; do
+for name in install.sh update.sh doctor.sh uninstall.sh release.json credential-store.sh; do
   assert_file "$ALGOMIM_HOME/integrations/codex/$name" "installer must write lifecycle file $name"
 done
 case "$(uname -s)" in
@@ -117,11 +125,11 @@ export ALGOMIM_API_KEY
 assert_equal "$OVERRIDE_KEY" "$($CODEX_HOME/algomim-auth.sh)" "environment key must override the credential file"
 unset ALGOMIM_API_KEY
 
-RERUN_OUTPUT=$(sh "$INSTALL" --credential-profile default 2>&1)
+RERUN_OUTPUT=$(sh "$INSTALL" --credential-profile default --cli-path-target process 2>&1)
 assert_equal "$DEFAULT_KEY" "$(profile_key "$CREDENTIALS" default)" "idempotent install must preserve the key"
 case "$RERUN_OUTPUT" in *"$DEFAULT_KEY"*) fail "idempotent install must not print the credential" ;; esac
 
-sh "$INSTALL" --api-key "$WORK_KEY" --credential-profile work >/dev/null 2>&1
+sh "$INSTALL" --api-key "$WORK_KEY" --credential-profile work --cli-path-target process >/dev/null 2>&1
 assert_equal "$DEFAULT_KEY" "$(profile_key "$CREDENTIALS" default)" "adding a profile must preserve default"
 assert_equal "$WORK_KEY" "$(profile_key "$CREDENTIALS" work)" "named profile must be written"
 ALGOMIM_PROFILE="default"
@@ -145,7 +153,7 @@ export CODEX_HOME ALGOMIM_HOME
 mkdir -p "$CODEX_HOME"
 umask 077
 printf '%s' "$LEGACY_KEY" > "$CODEX_HOME/algomim.key"
-MIGRATION_OUTPUT=$(sh "$INSTALL" --credential-profile default 2>&1)
+MIGRATION_OUTPUT=$(sh "$INSTALL" --credential-profile default --cli-path-target process 2>&1)
 LEGACY_CREDENTIALS="$ALGOMIM_HOME/credentials"
 assert_equal "$LEGACY_KEY" "$(profile_key "$LEGACY_CREDENTIALS" default)" "legacy key must migrate"
 [ ! -e "$CODEX_HOME/algomim.key" ] || fail "legacy key must be removed after verified migration"
@@ -156,7 +164,7 @@ CODEX_HOME="$ENVIRONMENT_ROOT/codex"
 ALGOMIM_HOME="$ENVIRONMENT_ROOT/algomim"
 ALGOMIM_API_KEY="$OVERRIDE_KEY"
 export CODEX_HOME ALGOMIM_HOME ALGOMIM_API_KEY
-ENVIRONMENT_OUTPUT=$(sh "$INSTALL" --credential-profile default 2>&1)
+ENVIRONMENT_OUTPUT=$(sh "$INSTALL" --credential-profile default --cli-path-target process 2>&1)
 [ ! -e "$ALGOMIM_HOME/credentials" ] || fail "environment override must not be persisted"
 assert_equal "$OVERRIDE_KEY" "$($CODEX_HOME/algomim-auth.sh)" "environment-only auth must resolve"
 case "$ENVIRONMENT_OUTPUT" in *"$OVERRIDE_KEY"*) fail "environment credential must not be printed" ;; esac

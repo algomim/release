@@ -59,59 +59,6 @@ sha256_file() {
   shasum -a 256 "$1" | awk '{print $1}'
 }
 
-validate_profile_name() {
-  case "$1" in
-    ""|*[!A-Za-z0-9._-]*|[._-]*)
-      return 1
-      ;;
-  esac
-  [ "${#1}" -le 64 ]
-}
-
-credential_get() {
-  path="$1"
-  profile="$2"
-  [ -f "$path" ] || return 1
-  [ ! -L "$path" ] || return 2
-
-  awk -v wanted="$profile" '
-    BEGIN { section = ""; found = 0; fatal = 0 }
-    {
-      line = $0
-      sub(/^[[:space:]]+/, "", line)
-      sub(/[[:space:]]+$/, "", line)
-      if (line == "" || line ~ /^[#;]/) next
-      if (line ~ /^\[[^][]+\]$/) {
-        section = substr(line, 2, length(line) - 2)
-        next
-      }
-      if (section == wanted && line ~ /^api_key[[:space:]]*=/) {
-        if (found) {
-          fatal = 3
-          next
-        }
-        sub(/^api_key[[:space:]]*=[[:space:]]*/, "", line)
-        sub(/[[:space:]]+$/, "", line)
-        if (line == "") {
-          fatal = 4
-          next
-        }
-        if (line ~ /[[:cntrl:]]/) {
-          fatal = 5
-          next
-        }
-        value = line
-        found = 1
-      }
-    }
-    END {
-      if (fatal) exit fatal
-      if (!found) exit 1
-      print value
-    }
-  ' "$path"
-}
-
 credential_mode() {
   path="$1"
   if mode=$(stat -c '%a' "$path" 2>/dev/null); then
@@ -124,6 +71,19 @@ credential_mode() {
 mkdir -p "$ALGOMIM_HOME"
 ALGOMIM_HOME=$(CDPATH= cd -- "$ALGOMIM_HOME" && pwd)
 INTEGRATION_HOME="$ALGOMIM_HOME/integrations/codex"
+CREDENTIAL_HELPER="$INTEGRATION_HOME/credential-store.sh"
+if [ ! -f "$CREDENTIAL_HELPER" ]; then
+  CREDENTIAL_HELPER="$ALGOMIM_HOME/cli/credential-store.sh"
+fi
+if [ ! -f "$CREDENTIAL_HELPER" ]; then
+  SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" 2>/dev/null && pwd || printf '')
+  CREDENTIAL_HELPER="$SCRIPT_DIR/../shared/credential-store.sh"
+fi
+[ -f "$CREDENTIAL_HELPER" ] || {
+  echo "Algomim credential helper is missing. Run the installer again." >&2
+  exit 1
+}
+. "$CREDENTIAL_HELPER"
 STATE_PATH="$INTEGRATION_HOME/state.json"
 STATE_VERSION=""
 STATE_CODEX_HOME=""
@@ -180,7 +140,7 @@ for lifecycle_file in install.sh update.sh doctor.sh uninstall.sh; do
   fi
 done
 
-if validate_profile_name "$CREDENTIAL_PROFILE"; then
+if algomim_credential_validate_profile "$CREDENTIAL_PROFILE" >/dev/null 2>&1; then
   ok "Credential profile name is valid."
 else
   fail "Credential profile name is invalid."
@@ -239,7 +199,7 @@ if [ -n "${ALGOMIM_API_KEY:-}" ]; then
   fi
 elif [ -L "$CREDENTIALS_PATH" ]; then
   fail "Credential file must not be a symbolic link: $CREDENTIALS_PATH"
-elif TOKEN=$(credential_get "$CREDENTIALS_PATH" "$CREDENTIAL_PROFILE" 2>/dev/null); then
+elif TOKEN=$(algomim_credential_get "$CREDENTIALS_PATH" "$CREDENTIAL_PROFILE" 2>/dev/null); then
   ok "Credential profile '$CREDENTIAL_PROFILE' exists in shared Algomim credentials."
   case "$(uname -s)" in
     MINGW*|MSYS*|CYGWIN*)

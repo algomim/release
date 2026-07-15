@@ -1,8 +1,7 @@
 {
   "schemaVersion": 1,
-  "integration": "codex",
+  "product": "algomim-cli",
   "version": "0.2.0",
   "releaseTag": "v0.2.0",
-  "channel": "pilot",
   "repository": "algomim/release"
 }

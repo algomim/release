@@ -46,6 +46,7 @@ function Read-ProfileKey {
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $install = Join-Path $repoRoot "codex\install.ps1"
 $uninstall = Join-Path $repoRoot "codex\uninstall.ps1"
+. (Join-Path $repoRoot "shared\credential-store.ps1")
 $testRoot = Join-Path $repoRoot (".credential-test-{0}" -f [Guid]::NewGuid().ToString("N"))
 $defaultKey = "test-key-default-000000"
 $workKey = "test-key-work-000000"
@@ -59,6 +60,15 @@ $savedProfile = $env:ALGOMIM_PROFILE
 
 try {
   New-Item -ItemType Directory -Path $testRoot | Out-Null
+  $rejectedMultilineKey = $false
+  try {
+    Normalize-AlgomimApiKey "sk-safe`n[injected]`napi_key = sk-injected" | Out-Null
+  }
+  catch {
+    $rejectedMultilineKey = $true
+  }
+  Assert-True $rejectedMultilineKey "credential normalization rejects embedded newlines"
+
   $codexHome = Join-Path $testRoot "codex"
   $algomimHome = Join-Path $testRoot "algomim"
   $env:CODEX_HOME = $codexHome
@@ -66,7 +76,7 @@ try {
   Remove-Item Env:ALGOMIM_API_KEY -ErrorAction SilentlyContinue
   Remove-Item Env:ALGOMIM_PROFILE -ErrorAction SilentlyContinue
 
-  $installOutput = (& $install -ApiKey $defaultKey -CredentialProfile default *>&1 | Out-String)
+  $installOutput = (& $install -ApiKey $defaultKey -CredentialProfile default -CliPathTarget Process *>&1 | Out-String)
   $credentialsPath = Join-Path $algomimHome "credentials"
   Assert-True (Test-Path -LiteralPath $credentialsPath -PathType Leaf) "fresh install creates shared credentials"
   Assert-Equal $defaultKey (Read-ProfileKey $credentialsPath "default") "default profile is written"
@@ -87,10 +97,10 @@ try {
   Assert-True (-not $codexArtifacts.Contains($defaultKey)) "Codex artifacts never embed the credential"
   $statePath = Join-Path $algomimHome "integrations\codex\state.json"
   $state = Get-Content -Raw -LiteralPath $statePath | ConvertFrom-Json
-  Assert-Equal "0.1.2" ([string] $state.version) "installer records its release version"
+  Assert-Equal "0.2.0" ([string] $state.version) "installer records its release version"
   Assert-Equal "default" ([string] $state.credentialProfile) "installer records the selected credential profile"
   Assert-True (-not (Get-Content -Raw -LiteralPath $statePath).Contains($defaultKey)) "installation state never contains the credential"
-  foreach ($name in @("install.ps1", "update.ps1", "doctor.ps1", "uninstall.ps1", "release.json")) {
+  foreach ($name in @("install.ps1", "update.ps1", "doctor.ps1", "uninstall.ps1", "release.json", "credential-store.ps1")) {
     Assert-True (Test-Path -LiteralPath (Join-Path $algomimHome "integrations\codex\$name")) "installer writes lifecycle file $name"
   }
 
@@ -109,11 +119,11 @@ try {
   Assert-Equal $overrideKey ((& $authScript | Out-String).Trim()) "environment key overrides the credential file"
   Remove-Item Env:ALGOMIM_API_KEY
 
-  $rerunOutput = (& $install -CredentialProfile default *>&1 | Out-String)
+  $rerunOutput = (& $install -CredentialProfile default -CliPathTarget Process *>&1 | Out-String)
   Assert-Equal $defaultKey (Read-ProfileKey $credentialsPath "default") "idempotent install preserves the existing key"
   Assert-True (-not $rerunOutput.Contains($defaultKey)) "idempotent install does not print the key"
 
-  & $install -ApiKey $workKey -CredentialProfile work *> $null
+  & $install -ApiKey $workKey -CredentialProfile work -CliPathTarget Process *> $null
   Assert-Equal $defaultKey (Read-ProfileKey $credentialsPath "default") "adding a profile preserves default"
   Assert-Equal $workKey (Read-ProfileKey $credentialsPath "work") "named profile is written"
   $env:ALGOMIM_PROFILE = "default"
@@ -137,7 +147,7 @@ try {
   $env:CODEX_HOME = $legacyCodexHome
   $env:ALGOMIM_HOME = $legacyAlgomimHome
 
-  $migrationOutput = (& $install -CredentialProfile default *>&1 | Out-String)
+  $migrationOutput = (& $install -CredentialProfile default -CliPathTarget Process *>&1 | Out-String)
   $legacyCredentials = Join-Path $legacyAlgomimHome "credentials"
   Assert-Equal $legacyKey (Read-ProfileKey $legacyCredentials "default") "legacy key migrates to shared credentials"
   Assert-True (-not (Test-Path -LiteralPath (Join-Path $legacyCodexHome "algomim.key"))) "legacy key is removed after verified migration"
@@ -149,7 +159,7 @@ try {
   $env:CODEX_HOME = $environmentCodexHome
   $env:ALGOMIM_HOME = $environmentAlgomimHome
   $env:ALGOMIM_API_KEY = $overrideKey
-  $environmentOutput = (& $install -CredentialProfile default *>&1 | Out-String)
+  $environmentOutput = (& $install -CredentialProfile default -CliPathTarget Process *>&1 | Out-String)
   Assert-True (-not (Test-Path -LiteralPath (Join-Path $environmentAlgomimHome "credentials"))) "environment override is not persisted"
   Assert-Equal $overrideKey ((& (Join-Path $environmentCodexHome "algomim-auth.ps1") | Out-String).Trim()) "environment-only auth resolves"
   Assert-True (-not $environmentOutput.Contains($overrideKey)) "environment credential is not printed"

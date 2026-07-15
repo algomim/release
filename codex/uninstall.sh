@@ -39,6 +39,15 @@ if [ -d "$ALGOMIM_HOME" ]; then
   ALGOMIM_HOME=$(CDPATH= cd -- "$ALGOMIM_HOME" && pwd)
 fi
 INTEGRATION_HOME="$ALGOMIM_HOME/integrations/codex"
+CREDENTIAL_HELPER="$INTEGRATION_HOME/credential-store.sh"
+if [ ! -f "$CREDENTIAL_HELPER" ]; then
+  CREDENTIAL_HELPER="$ALGOMIM_HOME/cli/credential-store.sh"
+fi
+[ -f "$CREDENTIAL_HELPER" ] || {
+  echo "Algomim credential helper is missing: $CREDENTIAL_HELPER" >&2
+  exit 1
+}
+. "$CREDENTIAL_HELPER"
 STATE_PATH="$INTEGRATION_HOME/state.json"
 if [ -f "$STATE_PATH" ]; then
   STATE_CODEX_HOME=$(json_field codexHome "$STATE_PATH")
@@ -76,67 +85,6 @@ remove_if_exists() {
   fi
 }
 
-remove_credential_profile() {
-  path="$1"
-  profile="$2"
-  if [ ! -f "$path" ]; then
-    printf '[algomim] Shared credentials file does not exist.\n'
-    return
-  fi
-  if [ -L "$path" ]; then
-    echo "Credential file cannot be a symbolic link: $path" >&2
-    exit 1
-  fi
-
-  directory=$(dirname "$path")
-  umask 077
-  temporary_path=$(mktemp "$directory/.credentials.XXXXXX")
-  in_target="0"
-  target_found="0"
-  meaningful="0"
-
-  while IFS= read -r line || [ -n "$line" ]; do
-    trimmed=$(printf '%s' "$line" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
-    case "$trimmed" in
-      \[*\])
-        section=${trimmed#\[}
-        section=${section%\]}
-        if [ "$section" = "$profile" ]; then
-          in_target="1"
-          target_found="1"
-          continue
-        fi
-        in_target="0"
-        ;;
-    esac
-
-    if [ "$in_target" = "0" ]; then
-      printf '%s\n' "$line" >> "$temporary_path"
-      case "$trimmed" in
-        ""|\#*|\;*) ;;
-        *) meaningful="1" ;;
-      esac
-    fi
-  done < "$path"
-
-  if [ "$target_found" = "0" ]; then
-    rm -f "$temporary_path"
-    printf "[algomim] Credential profile '%s' was not present.\n" "$profile"
-    return
-  fi
-
-  if [ "$meaningful" = "0" ]; then
-    rm -f "$temporary_path" "$path"
-    printf "[algomim] Removed credential profile '%s' and the empty credentials file.\n" "$profile"
-    return
-  fi
-
-  chmod 600 "$temporary_path"
-  mv -f "$temporary_path" "$path"
-  chmod 600 "$path"
-  printf "[algomim] Removed credential profile '%s'.\n" "$profile"
-}
-
 remove_if_exists "$CODEX_HOME/algomim.config.toml"
 remove_if_exists "$CODEX_HOME/algomim-models.json"
 remove_if_exists "$CODEX_HOME/algomim-models.lock.json"
@@ -147,7 +95,12 @@ if [ "$KEEP_KEY" = "1" ]; then
 fi
 
 if [ "$REMOVE_CREDENTIAL" = "1" ]; then
-  remove_credential_profile "$CREDENTIALS_PATH" "$CREDENTIAL_PROFILE"
+  CREDENTIAL_RESULT=$(algomim_credential_remove "$CREDENTIALS_PATH" "$CREDENTIAL_PROFILE")
+  case "$CREDENTIAL_RESULT" in
+    missing) printf "[algomim] Credential profile '%s' was not present.\n" "$CREDENTIAL_PROFILE" ;;
+    removed-empty) printf "[algomim] Removed credential profile '%s' and the empty credentials file.\n" "$CREDENTIAL_PROFILE" ;;
+    *) printf "[algomim] Removed credential profile '%s'.\n" "$CREDENTIAL_PROFILE" ;;
+  esac
   remove_if_exists "$LEGACY_KEY_PATH"
 else
   printf "[algomim] Kept shared Algomim credential profile '%s'.\n" "$CREDENTIAL_PROFILE"

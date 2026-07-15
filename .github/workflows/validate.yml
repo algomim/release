@@ -23,6 +23,9 @@ jobs:
       - name: Validate PowerShell credential contract
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File tests/codex-credentials.ps1
+      - name: Validate PowerShell Algomim CLI
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tests/cli.ps1
       - name: Validate PowerShell update and rollback
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File tests/codex-update.ps1
@@ -44,5 +47,7 @@ jobs:
         run: node tests/codex-catalog.mjs
       - name: Validate POSIX credential contract
         run: sh tests/codex-credentials.sh
+      - name: Validate POSIX Algomim CLI
+        run: sh tests/cli.sh
       - name: Validate POSIX update and rollback
         run: sh tests/codex-update.sh
