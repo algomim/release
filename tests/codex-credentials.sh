@@ -97,7 +97,15 @@ case "$(uname -s)" in
   *) assert_equal "600" "$(file_mode "$CREDENTIALS")" "credential file mode must be 600" ;;
 esac
 assert_equal "$DEFAULT_KEY" "$($CODEX_HOME/algomim-auth.sh)" "auth helper must resolve the stored profile"
-if ! CODEX_HOME="$TEST_ROOT//codex/" \
+DOCTOR_BIN="$TEST_ROOT/doctor-bin"
+mkdir -p "$DOCTOR_BIN"
+cat > "$DOCTOR_BIN/codex" <<'EOF'
+#!/usr/bin/env sh
+exit 0
+EOF
+chmod 700 "$DOCTOR_BIN/codex"
+if ! PATH="$DOCTOR_BIN:$PATH" \
+  CODEX_HOME="$TEST_ROOT//codex/" \
   sh "$ALGOMIM_HOME/integrations/codex/doctor.sh" \
   --credential-profile default \
   --skip-api-check >/dev/null 2>&1; then
