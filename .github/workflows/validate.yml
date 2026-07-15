@@ -13,6 +13,13 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Validate generated Codex catalog
+        run: node tests/codex-catalog.mjs
       - name: Validate PowerShell credential contract
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File tests/codex-credentials.ps1
@@ -28,6 +35,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Validate generated Codex catalog
+        run: node tests/codex-catalog.mjs
       - name: Validate POSIX credential contract
         run: sh tests/codex-credentials.sh
       - name: Validate POSIX update and rollback
