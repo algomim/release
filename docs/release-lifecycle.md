@@ -6,30 +6,53 @@ their public contract remains compatible.
 
 ## Version contract
 
-Codex uses semantic versions such as `0.1.0` and immutable-by-policy Git tags
-such as `v0.1.0`. The source contract is `codex/release.json`. A release tag
+Codex uses semantic versions such as `0.1.1` and immutable-by-policy Git tags
+such as `v0.1.1`. The source contract is `codex/release.json`. A release tag
 must match that file exactly.
 
 Customer installation instructions use a tag-pinned raw URL. They never run a
 mutable `main` installer:
 
 ```text
-https://raw.githubusercontent.com/algomim/release/v0.1.0/codex/install.ps1
-https://raw.githubusercontent.com/algomim/release/v0.1.0/codex/install.sh
+https://raw.githubusercontent.com/algomim/release/v0.1.1/codex/install.ps1
+https://raw.githubusercontent.com/algomim/release/v0.1.1/codex/install.sh
 ```
 
 Pushing a matching tag starts the release workflow. Windows, Ubuntu, and macOS
 lifecycle tests must pass before the workflow publishes:
 
+- the updater from the previous immutable release must install the candidate
+  release without changing the shared credential;
+- the candidate updater must still pass checksum rejection and exact rollback;
+- the generated Codex catalog and profile contract must match the canonical
+  Inference model definition.
+
 ```text
 manifest.json
 SHA256SUMS
-algomim-codex-windows-v0.1.0.zip
-algomim-codex-posix-v0.1.0.tar.gz
+algomim-codex-windows-v0.1.1.zip
+algomim-codex-posix-v0.1.1.tar.gz
 ```
 
 Published tags and release assets must not be moved, replaced, or deleted. A
 fix is always a new semantic version.
+
+## Generated model catalog
+
+`codex/algomim-models.json` is generated from the private platform's canonical
+Inference model definitions. The adjacent `algomim-models.lock.json` records the
+generator contract and catalog SHA-256. Release packaging fails when the lock
+does not match, and the generated catalog is never edited manually.
+
+After a GitHub Release is published, the `Published release smoke` workflow
+downloads the immutable installer and artifacts on Windows, Ubuntu, and macOS.
+It exercises install, offline doctor, update check, checksum-verified forced
+update, uninstall, credential reuse, and explicit credential removal using
+isolated home directories.
+
+The tag workflow explicitly dispatches this smoke after creating the release.
+Release events created with the workflow's `GITHUB_TOKEN` do not recursively
+start another workflow, while `workflow_dispatch` is allowed.
 
 ## Installed state
 

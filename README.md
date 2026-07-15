@@ -9,13 +9,13 @@ scripts, uninstall scripts, and troubleshooting docs.
 
 ## Available integrations
 
-| Integration | Status | Path |
-| --- | --- | --- |
-| Codex CLI | Pilot | [`codex/`](./codex/) |
-| Claude Code | Future | [`claude-code/`](./claude-code/) |
-| Visual Studio Code | Future | [`vscode/`](./vscode/) |
-| Cursor | Future | [`cursor/`](./cursor/) |
-| Windsurf | Future | [`windsurf/`](./windsurf/) |
+| Integration        | Status | Path                             |
+| ------------------ | ------ | -------------------------------- |
+| Codex CLI          | Pilot  | [`codex/`](./codex/)             |
+| Claude Code        | Future | [`claude-code/`](./claude-code/) |
+| Visual Studio Code | Future | [`vscode/`](./vscode/)           |
+| Cursor             | Future | [`cursor/`](./cursor/)           |
+| Windsurf           | Future | [`windsurf/`](./windsurf/)       |
 
 [`integrations.json`](./integrations.json) is the machine-readable integration
 index. `Future` entries reserve a stable integration ID and directory only;
@@ -34,13 +34,13 @@ release repository. See
 Windows PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/algomim/release/v0.1.0/codex/install.ps1 | iex
+irm https://raw.githubusercontent.com/algomim/release/v0.1.1/codex/install.ps1 | iex
 ```
 
 macOS/Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.1.0/codex/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.1.1/codex/install.sh | sh
 ```
 
 Then start Codex with the Algomim profile:
@@ -55,6 +55,10 @@ Release packaging, checksums, installed state, update, and rollback are
 documented in
 [`docs/release-lifecycle.md`](./docs/release-lifecycle.md).
 
+Codex model cards are generated from canonical Inference model definitions.
+`codex/algomim-models.json` and its SHA-256 lock are release inputs, not
+hand-authored model metadata.
+
 ## Repository rules
 
 - Keep this repository public-safe.
@@ -67,6 +71,6 @@ documented in
 - Keep API keys in the shared Algomim credential store, never in a
   client-owned directory.
 - Prefer versioned release URLs for customer-facing instructions once a release
-  is cut, for example `/v0.1.0/codex/install.ps1`.
+  is cut, for example `/v0.1.1/codex/install.ps1`.
 - Never move an existing release tag or replace published release assets; ship
   a new semantic version instead.

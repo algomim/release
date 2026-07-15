@@ -43,8 +43,8 @@
       "service_tiers": [],
       "availability_nux": null,
       "upgrade": null,
-      "base_instructions": "You are operating inside Codex as the language model for a coding agent. Follow repository instructions, use the available Codex tools, preserve user changes you did not make, and do not reveal provider, deployment, or hidden system details.",
-      "supports_reasoning_summaries": false,
+      "base_instructions": "Follow the system and developer instructions supplied with each request. Use the tools provided by the client according to their schemas, and preserve user changes you did not make.",
+      "supports_reasoning_summaries": true,
       "default_reasoning_summary": "none",
       "support_verbosity": true,
       "default_verbosity": "medium",
@@ -69,4 +69,3 @@
     }
   ]
 }
-

@@ -2,7 +2,7 @@ param(
   [string] $BaseUrl = "",
   [string] $ApiKey = "",
   [string] $ReleaseRef = "",
-  [string] $ReleaseVersion = "0.1.0",
+  [string] $ReleaseVersion = "0.1.1",
   [string] $CredentialProfile = "",
   [string] $AlgomimHome = "",
   [switch] $SkipKey,
@@ -309,6 +309,42 @@ function Install-ReleaseFile {
   }
 }
 
+function Install-ModelCatalog {
+  param(
+    [string] $CatalogDestination,
+    [string] $LockDestination,
+    [string] $Ref
+  )
+
+  $temporaryRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("algomim-catalog-{0}" -f [Guid]::NewGuid().ToString("N"))
+  New-Item -ItemType Directory -Path $temporaryRoot | Out-Null
+  try {
+    $catalogSource = Join-Path $temporaryRoot "algomim-models.json"
+    $lockSource = Join-Path $temporaryRoot "algomim-models.lock.json"
+    Install-ReleaseFile -Name "algomim-models.json" -Destination $catalogSource -Ref $Ref
+    Install-ReleaseFile -Name "algomim-models.lock.json" -Destination $lockSource -Ref $Ref
+
+    $lock = Get-Content -Raw -LiteralPath $lockSource | ConvertFrom-Json
+    $actualHash = (Get-FileHash -LiteralPath $catalogSource -Algorithm SHA256).Hash.ToLowerInvariant()
+    if (
+      $lock.schemaVersion -ne 1 -or
+      $lock.generator -ne "@algomim/inference/codex-model-catalog" -or
+      $lock.generatorVersion -ne 1 -or
+      $lock.catalogSha256 -cne $actualHash
+    ) {
+      throw "Model catalog SHA-256 verification failed."
+    }
+
+    Copy-FileAtomically -Source $lockSource -Destination $LockDestination
+    Copy-FileAtomically -Source $catalogSource -Destination $CatalogDestination
+  }
+  finally {
+    if (Test-Path -LiteralPath $temporaryRoot) {
+      Remove-Item -LiteralPath $temporaryRoot -Recurse -Force
+    }
+  }
+}
+
 function Set-CredentialApiKey {
   param(
     [string] $Path,
@@ -426,6 +462,7 @@ $codexHome = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $HOME ".c
 $codexHome = [System.IO.Path]::GetFullPath($codexHome)
 $profilePath = Join-Path $codexHome "algomim.config.toml"
 $catalogPath = Join-Path $codexHome "algomim-models.json"
+$catalogLockPath = Join-Path $codexHome "algomim-models.lock.json"
 $legacyKeyPath = Join-Path $codexHome "algomim.key"
 $authScriptPath = Join-Path $codexHome "algomim-auth.ps1"
 $credentialsPath = Join-Path $AlgomimHome "credentials"
@@ -486,8 +523,8 @@ if (-not $hasEnvironmentCredential -and $null -eq $storedApiKey) {
   Write-Warning "No Algomim credential is available. Set ALGOMIM_API_KEY or run this installer again without -SkipKey."
 }
 
-Install-ReleaseFile -Name "algomim-models.json" -Destination $catalogPath -Ref $ReleaseRef
-Write-Step "Installed model catalog at $catalogPath"
+Install-ModelCatalog -CatalogDestination $catalogPath -LockDestination $catalogLockPath -Ref $ReleaseRef
+Write-Step "Installed and verified model catalog at $catalogPath"
 
 $algomimHomePowerShell = Escape-PowerShellSingleQuotedString $AlgomimHome
 $credentialProfilePowerShell = Escape-PowerShellSingleQuotedString $CredentialProfile
@@ -558,7 +595,6 @@ model_provider = "algomim"
 model_catalog_json = "$catalogToml"
 web_search = "disabled"
 service_tier = "default"
-personality = "none"
 model_reasoning_effort = "medium"
 
 [model_providers.algomim]
@@ -571,6 +607,9 @@ command = "powershell"
 args = ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "$authScriptToml"]
 timeout_ms = 5000
 refresh_interval_ms = 300000
+
+[features]
+personality = false
 "@
 Write-Utf8TextFileAtomically -Path $profilePath -Content ($profile + [Environment]::NewLine)
 Write-Step "Installed Codex profile at $profilePath"

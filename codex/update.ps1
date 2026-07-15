@@ -46,7 +46,7 @@ function Restore-Installation {
   )
 
   $codexBackup = Join-Path $BackupRoot "codex"
-  foreach ($name in @("algomim.config.toml", "algomim-models.json", "algomim-auth.ps1")) {
+  foreach ($name in @("algomim.config.toml", "algomim-models.json", "algomim-models.lock.json", "algomim-auth.ps1")) {
     $destination = Join-Path $CodexHome $name
     if (Test-Path -LiteralPath $destination) {
       Remove-Item -LiteralPath $destination -Force
@@ -191,7 +191,7 @@ try {
   $stagedCodex = Join-Path $stageRoot "codex"
   $stagedInstaller = Join-Path $stagedCodex "install.ps1"
   $stagedDoctor = Join-Path $stagedCodex "doctor.ps1"
-  foreach ($requiredPath in @($stagedInstaller, $stagedDoctor, (Join-Path $stagedCodex "update.ps1"), (Join-Path $stagedCodex "release.json"))) {
+  foreach ($requiredPath in @($stagedInstaller, $stagedDoctor, (Join-Path $stagedCodex "update.ps1"), (Join-Path $stagedCodex "release.json"), (Join-Path $stagedCodex "algomim-models.json"), (Join-Path $stagedCodex "algomim-models.lock.json"))) {
     if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
       throw "Release artifact is missing a required Codex file."
     }
@@ -208,7 +208,7 @@ try {
   $codexBackup = Join-Path $backupRoot "codex"
   $integrationBackup = Join-Path $backupRoot "integration"
   New-Item -ItemType Directory -Path $codexBackup -Force | Out-Null
-  foreach ($name in @("algomim.config.toml", "algomim-models.json", "algomim-auth.ps1")) {
+  foreach ($name in @("algomim.config.toml", "algomim-models.json", "algomim-models.lock.json", "algomim-auth.ps1")) {
     $source = Join-Path $codexHome $name
     if (Test-Path -LiteralPath $source -PathType Leaf) {
       Copy-Item -LiteralPath $source -Destination (Join-Path $codexBackup $name) -Force

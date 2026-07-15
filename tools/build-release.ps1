@@ -7,6 +7,22 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $contractPath = Join-Path $repoRoot "codex\release.json"
 $contract = Get-Content -Raw -LiteralPath $contractPath | ConvertFrom-Json
+$catalogPath = Join-Path $repoRoot "codex\algomim-models.json"
+$catalogLockPath = Join-Path $repoRoot "codex\algomim-models.lock.json"
+
+if (-not (Test-Path -LiteralPath $catalogPath -PathType Leaf) -or -not (Test-Path -LiteralPath $catalogLockPath -PathType Leaf)) {
+  throw "Generated Codex catalog or lock file is missing."
+}
+$catalogLock = Get-Content -Raw -LiteralPath $catalogLockPath | ConvertFrom-Json
+$catalogHash = (Get-FileHash -LiteralPath $catalogPath -Algorithm SHA256).Hash.ToLowerInvariant()
+if (
+  $catalogLock.schemaVersion -ne 1 -or
+  $catalogLock.generator -ne "@algomim/inference/codex-model-catalog" -or
+  $catalogLock.generatorVersion -ne 1 -or
+  $catalogLock.catalogSha256 -ne $catalogHash
+) {
+  throw "Generated Codex catalog lock does not match algomim-models.json."
+}
 
 if ([string]::IsNullOrWhiteSpace($Version)) {
   $Version = [string] $contract.version
@@ -33,10 +49,10 @@ try {
   New-Item -ItemType Directory -Path $windowsCodex -Force | Out-Null
   New-Item -ItemType Directory -Path $posixCodex -Force | Out-Null
 
-  foreach ($name in @("algomim-models.json", "install.ps1", "update.ps1", "doctor.ps1", "uninstall.ps1", "release.json")) {
+  foreach ($name in @("algomim-models.json", "algomim-models.lock.json", "install.ps1", "update.ps1", "doctor.ps1", "uninstall.ps1", "release.json")) {
     Copy-Item -LiteralPath (Join-Path $repoRoot "codex\$name") -Destination (Join-Path $windowsCodex $name)
   }
-  foreach ($name in @("algomim-models.json", "install.sh", "update.sh", "doctor.sh", "uninstall.sh", "release.json")) {
+  foreach ($name in @("algomim-models.json", "algomim-models.lock.json", "install.sh", "update.sh", "doctor.sh", "uninstall.sh", "release.json")) {
     Copy-Item -LiteralPath (Join-Path $repoRoot "codex\$name") -Destination (Join-Path $posixCodex $name)
   }
 

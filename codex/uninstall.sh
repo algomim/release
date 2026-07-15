@@ -139,6 +139,7 @@ remove_credential_profile() {
 
 remove_if_exists "$CODEX_HOME/algomim.config.toml"
 remove_if_exists "$CODEX_HOME/algomim-models.json"
+remove_if_exists "$CODEX_HOME/algomim-models.lock.json"
 remove_if_exists "$CODEX_HOME/algomim-auth.sh"
 
 if [ "$KEEP_KEY" = "1" ]; then

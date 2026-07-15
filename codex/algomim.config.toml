@@ -6,7 +6,6 @@ model_provider = "algomim"
 model_catalog_json = "<absolute-path-to-algomim-models.json>"
 web_search = "disabled"
 service_tier = "default"
-personality = "none"
 model_reasoning_effort = "medium"
 
 [model_providers.algomim]
@@ -20,3 +19,5 @@ args = ["<auth-arg-1>", "<auth-arg-2>"]
 timeout_ms = 5000
 refresh_interval_ms = 300000
 
+[features]
+personality = false

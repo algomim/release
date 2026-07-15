@@ -72,13 +72,22 @@ try {
   Assert-Equal $defaultKey (Read-ProfileKey $credentialsPath "default") "default profile is written"
   Assert-True (-not (Test-Path -LiteralPath (Join-Path $codexHome "algomim.key"))) "fresh install does not create a Codex-owned key"
   Assert-True (-not $installOutput.Contains($defaultKey)) "install output never contains the credential"
+  $installedProfile = Get-Content -Raw -LiteralPath (Join-Path $codexHome "algomim.config.toml")
+  $featuresSection = [regex]::Match(
+    $installedProfile,
+    '(?ms)^\[features\][^\S\r\n]*\r?\n(?<body>.*?)(?=^\[|\z)'
+  )
+  Assert-True (
+    $featuresSection.Success -and
+    $featuresSection.Groups["body"].Value -match '(?m)^personality\s*=\s*false\s*$'
+  ) "installed profile disables unsupported personality injection"
   $codexArtifacts = (Get-ChildItem -LiteralPath $codexHome -File | ForEach-Object {
       Get-Content -Raw -LiteralPath $_.FullName
     }) -join "`n"
   Assert-True (-not $codexArtifacts.Contains($defaultKey)) "Codex artifacts never embed the credential"
   $statePath = Join-Path $algomimHome "integrations\codex\state.json"
   $state = Get-Content -Raw -LiteralPath $statePath | ConvertFrom-Json
-  Assert-Equal "0.1.0" ([string] $state.version) "installer records its release version"
+  Assert-Equal "0.1.1" ([string] $state.version) "installer records its release version"
   Assert-Equal "default" ([string] $state.credentialProfile) "installer records the selected credential profile"
   Assert-True (-not (Get-Content -Raw -LiteralPath $statePath).Contains($defaultKey)) "installation state never contains the credential"
   foreach ($name in @("install.ps1", "update.ps1", "doctor.ps1", "uninstall.ps1", "release.json")) {

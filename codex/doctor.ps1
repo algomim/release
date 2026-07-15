@@ -143,6 +143,7 @@ if ($CredentialProfile -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$') {
 
 $profilePath = Join-Path $CodexHome "algomim.config.toml"
 $catalogPath = Join-Path $CodexHome "algomim-models.json"
+$catalogLockPath = Join-Path $CodexHome "algomim-models.lock.json"
 $legacyKeyPath = Join-Path $CodexHome "algomim.key"
 $authScriptPath = Join-Path $CodexHome "algomim-auth.ps1"
 $credentialsPath = Join-Path $AlgomimHome "credentials"
@@ -214,6 +215,33 @@ if (Test-Path -LiteralPath $catalogPath) {
 }
 else {
   Check-Fail "Model catalog is missing: $catalogPath"
+}
+
+if (
+  (Test-Path -LiteralPath $catalogLockPath -PathType Leaf) -and
+  (Test-Path -LiteralPath $catalogPath -PathType Leaf)
+) {
+  try {
+    $catalogLock = Get-Content -Raw -LiteralPath $catalogLockPath | ConvertFrom-Json
+    $catalogHash = (Get-FileHash -LiteralPath $catalogPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if (
+      $catalogLock.schemaVersion -eq 1 -and
+      $catalogLock.generator -eq "@algomim/inference/codex-model-catalog" -and
+      $catalogLock.generatorVersion -eq 1 -and
+      $catalogLock.catalogSha256 -ceq $catalogHash
+    ) {
+      Check-Ok "Model catalog checksum is valid."
+    }
+    else {
+      Check-Fail "Model catalog checksum does not match its lock file."
+    }
+  }
+  catch {
+    Check-Fail "Model catalog lock is not valid JSON."
+  }
+}
+else {
+  Check-Fail "Model catalog lock is missing: $catalogLockPath"
 }
 
 if (Test-Path -LiteralPath $authScriptPath) {
@@ -301,6 +329,20 @@ if (Test-Path -LiteralPath $profilePath) {
   }
   else {
     Check-Fail "Profile does not use the Responses wire API."
+  }
+
+  $featuresSection = [regex]::Match(
+    $profile,
+    '(?ms)^\[features\][^\S\r\n]*\r?\n(?<body>.*?)(?=^\[|\z)'
+  )
+  if (
+    $featuresSection.Success -and
+    $featuresSection.Groups["body"].Value -match '(?m)^personality\s*=\s*false\s*$'
+  ) {
+    Check-Ok "Profile disables unsupported Codex personality injection."
+  }
+  else {
+    Check-Fail "Profile does not disable unsupported Codex personality injection."
   }
 
   $baseUrlMatch = [regex]::Match($profile, 'base_url\s*=\s*"([^"]+)"')

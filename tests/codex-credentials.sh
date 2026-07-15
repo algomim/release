@@ -68,13 +68,26 @@ assert_file "$CREDENTIALS" "fresh install must create shared credentials"
 assert_equal "$DEFAULT_KEY" "$(profile_key "$CREDENTIALS" default)" "default profile must be written"
 [ ! -e "$CODEX_HOME/algomim.key" ] || fail "fresh install must not create a Codex-owned key"
 case "$INSTALL_OUTPUT" in *"$DEFAULT_KEY"*) fail "install output must not contain the credential" ;; esac
+awk '
+  /^[[:space:]]*\[[^][]+\][[:space:]]*$/ {
+    section = $0
+    sub(/^[[:space:]]*\[/, "", section)
+    sub(/\][[:space:]]*$/, "", section)
+    next
+  }
+  section == "features" &&
+    /^[[:space:]]*personality[[:space:]]*=[[:space:]]*false[[:space:]]*$/ {
+    found = 1
+  }
+  END { exit found ? 0 : 1 }
+' "$CODEX_HOME/algomim.config.toml" || fail "installed profile must disable unsupported personality injection"
 if grep -R -F "$DEFAULT_KEY" "$CODEX_HOME" >/dev/null 2>&1; then
   fail "Codex artifacts must not embed the credential"
 fi
 STATE_PATH="$ALGOMIM_HOME/integrations/codex/state.json"
 assert_file "$STATE_PATH" "installer must record integration state"
 STATE_VERSION=$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$STATE_PATH")
-assert_equal "0.1.0" "$STATE_VERSION" "installer must record its release version"
+assert_equal "0.1.1" "$STATE_VERSION" "installer must record its release version"
 grep -F "$DEFAULT_KEY" "$STATE_PATH" >/dev/null 2>&1 && fail "installation state must not contain credential"
 for name in install.sh update.sh doctor.sh uninstall.sh release.json; do
   assert_file "$ALGOMIM_HOME/integrations/codex/$name" "installer must write lifecycle file $name"
@@ -135,6 +148,25 @@ assert_equal "$OVERRIDE_KEY" "$($CODEX_HOME/algomim-auth.sh)" "environment-only 
 case "$ENVIRONMENT_OUTPUT" in *"$OVERRIDE_KEY"*) fail "environment credential must not be printed" ;; esac
 grep -F "$OVERRIDE_KEY" "$ALGOMIM_HOME/integrations/codex/state.json" >/dev/null 2>&1 && fail "environment credential must not be written to state"
 unset ALGOMIM_API_KEY
+
+FAILURE_ROOT="$TEST_ROOT/download-failure"
+mkdir -p "$FAILURE_ROOT/bin" "$FAILURE_ROOT/tmp"
+cp "$INSTALL" "$FAILURE_ROOT/install.sh"
+cat > "$FAILURE_ROOT/bin/curl" <<'EOF'
+#!/usr/bin/env sh
+exit 22
+EOF
+chmod 700 "$FAILURE_ROOT/bin/curl"
+if TMPDIR="$FAILURE_ROOT/tmp" \
+  CODEX_HOME="$FAILURE_ROOT/codex" \
+  ALGOMIM_HOME="$FAILURE_ROOT/algomim" \
+  PATH="$FAILURE_ROOT/bin:$PATH" \
+  sh "$FAILURE_ROOT/install.sh" --skip-key >/dev/null 2>&1; then
+  fail "installer must fail when a release file cannot be downloaded"
+fi
+if find "$FAILURE_ROOT/tmp" -mindepth 1 -print -quit | grep . >/dev/null 2>&1; then
+  fail "failed release downloads must not leave temporary files"
+fi
 
 if find "$TEST_ROOT" -name '.credentials.*.tmp' -o -name '.credentials.*.bak' | grep . >/dev/null 2>&1; then
   fail "atomic credential updates must not leave temporary files"

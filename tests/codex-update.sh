@@ -56,13 +56,24 @@ EOF
 copy_posix_bundle() {
   destination="$1"
   mkdir -p "$destination/codex"
-  for name in algomim-models.json install.sh update.sh doctor.sh uninstall.sh release.json; do
+  for name in algomim-models.json algomim-models.lock.json install.sh update.sh doctor.sh uninstall.sh release.json; do
     cp "$REPO_ROOT/codex/$name" "$destination/codex/$name"
   done
 }
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
+CURRENT_VERSION=$(json_field version "$REPO_ROOT/codex/release.json")
+CURRENT_TAG=$(json_field releaseTag "$REPO_ROOT/codex/release.json")
+if [ "$CURRENT_VERSION" = "9999.9999.9999" ]; then
+  INVALID_VERSION="9999.9999.9998"
+else
+  INVALID_VERSION="9999.9999.9999"
+fi
+INVALID_TAG="v$INVALID_VERSION"
+PREVIOUS_TAG=$(git -C "$REPO_ROOT" tag --list 'v*.*.*' --sort=-version:refname |
+  awk -v current="$CURRENT_TAG" '$0 != current { print; exit }')
+[ -n "$PREVIOUS_TAG" ] || fail "a previous release tag is required for the update compatibility test"
 TEST_ROOT=$(mktemp -d)
 trap 'rm -rf "$TEST_ROOT"' HUP INT TERM EXIT
 
@@ -83,24 +94,32 @@ export PATH CODEX_HOME ALGOMIM_HOME
 unset ALGOMIM_API_KEY ALGOMIM_PROFILE 2>/dev/null || true
 
 copy_posix_bundle "$STAGE/good"
-GOOD_ARTIFACT="algomim-codex-posix-v0.1.0.tar.gz"
+GOOD_ARTIFACT="algomim-codex-posix-$CURRENT_TAG.tar.gz"
 tar -czf "$ARTIFACTS/$GOOD_ARTIFACT" -C "$STAGE/good" codex
 GOOD_HASH=$(sha256_file "$ARTIFACTS/$GOOD_ARTIFACT")
-write_manifest "0.1.0" "$GOOD_ARTIFACT" "$GOOD_HASH" "$ARTIFACTS/manifest.json"
+write_manifest "$CURRENT_VERSION" "$GOOD_ARTIFACT" "$GOOD_HASH" "$ARTIFACTS/manifest.json"
 
-sh "$REPO_ROOT/codex/install.sh" \
+PREVIOUS_ARCHIVE="$TEST_ROOT/previous-release.tar"
+git -C "$REPO_ROOT" archive --format=tar --output="$PREVIOUS_ARCHIVE" "$PREVIOUS_TAG" codex
+mkdir -p "$STAGE/previous"
+tar -xf "$PREVIOUS_ARCHIVE" -C "$STAGE/previous"
+PREVIOUS_VERSION=$(json_field version "$STAGE/previous/codex/release.json")
+assert_equal "$PREVIOUS_TAG" "$(json_field releaseTag "$STAGE/previous/codex/release.json")" "previous release contract must match its tag"
+
+sh "$STAGE/previous/codex/install.sh" \
   --api-key "$KEY" \
-  --release-version 0.0.9 \
-  --release-ref v0.0.9 >/dev/null 2>&1
+  --release-version "$PREVIOUS_VERSION" \
+  --release-ref "$PREVIOUS_TAG" >/dev/null 2>&1
 
 STATE_PATH="$ALGOMIM_HOME/integrations/codex/state.json"
 CREDENTIALS_PATH="$ALGOMIM_HOME/credentials"
 INITIAL_INSTALLED_AT=$(json_field installedAt "$STATE_PATH")
-UPDATE_OUTPUT=$(sh "$REPO_ROOT/codex/update.sh" \
+assert_equal "$PREVIOUS_VERSION" "$(json_field version "$STATE_PATH")" "test must start from the previous published release"
+UPDATE_OUTPUT=$(sh "$ALGOMIM_HOME/integrations/codex/update.sh" \
   --manifest-url "$ARTIFACTS/manifest.json" \
   --artifact-base-url "$ARTIFACTS" 2>&1)
 
-assert_equal "0.1.0" "$(json_field version "$STATE_PATH")" "verified release must update state"
+assert_equal "$CURRENT_VERSION" "$(json_field version "$STATE_PATH")" "previous updater must install the verified current release"
 assert_equal "$INITIAL_INSTALLED_AT" "$(json_field installedAt "$STATE_PATH")" "update must preserve installation timestamp"
 grep -F "$KEY" "$CREDENTIALS_PATH" >/dev/null || fail "update must preserve shared credential"
 case "$UPDATE_OUTPUT" in *"$KEY"*) fail "update output must not contain credential" ;; esac
@@ -111,14 +130,14 @@ cp "$STATE_PATH" "$TEST_ROOT/state-before-rollback.json"
 cp "$CREDENTIALS_PATH" "$TEST_ROOT/credential-before-rollback"
 
 copy_posix_bundle "$STAGE/bad"
-sed 's/"version": "0.1.0"/"version": "0.2.0"/; s/"releaseTag": "v0.1.0"/"releaseTag": "v0.2.0"/' \
+sed "s/\"version\": \"$CURRENT_VERSION\"/\"version\": \"$INVALID_VERSION\"/; s/\"releaseTag\": \"$CURRENT_TAG\"/\"releaseTag\": \"$INVALID_TAG\"/" \
   "$STAGE/bad/codex/release.json" > "$STAGE/bad/codex/release.json.tmp"
 mv "$STAGE/bad/codex/release.json.tmp" "$STAGE/bad/codex/release.json"
 printf '{\n  "models": []\n}\n' > "$STAGE/bad/codex/algomim-models.json"
-BAD_ARTIFACT="algomim-codex-posix-v0.2.0.tar.gz"
+BAD_ARTIFACT="algomim-codex-posix-$INVALID_TAG.tar.gz"
 tar -czf "$ARTIFACTS/$BAD_ARTIFACT" -C "$STAGE/bad" codex
 BAD_HASH=$(sha256_file "$ARTIFACTS/$BAD_ARTIFACT")
-write_manifest "0.2.0" "$BAD_ARTIFACT" "$BAD_HASH" "$ARTIFACTS/bad-manifest.json"
+write_manifest "$INVALID_VERSION" "$BAD_ARTIFACT" "$BAD_HASH" "$ARTIFACTS/bad-manifest.json"
 
 if sh "$ALGOMIM_HOME/integrations/codex/update.sh" \
   --manifest-url "$ARTIFACTS/bad-manifest.json" \
@@ -130,7 +149,7 @@ assert_equal "$PROFILE_HASH" "$(sha256_file "$PROFILE_PATH")" "rollback must res
 cmp -s "$TEST_ROOT/credential-before-rollback" "$CREDENTIALS_PATH" || fail "rollback must not change credential"
 [ -f "$ALGOMIM_HOME/integrations/codex/update.sh" ] || fail "rollback must restore lifecycle files"
 
-write_manifest "0.2.0" "$BAD_ARTIFACT" "0000000000000000000000000000000000000000000000000000000000000000" "$ARTIFACTS/checksum-manifest.json"
+write_manifest "$INVALID_VERSION" "$BAD_ARTIFACT" "0000000000000000000000000000000000000000000000000000000000000000" "$ARTIFACTS/checksum-manifest.json"
 if sh "$ALGOMIM_HOME/integrations/codex/update.sh" \
   --manifest-url "$ARTIFACTS/checksum-manifest.json" \
   --artifact-base-url "$ARTIFACTS" >/dev/null 2>&1; then

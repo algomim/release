@@ -24,6 +24,7 @@ to `~/.codex`:
 ```text
 ~/.codex/algomim.config.toml
 ~/.codex/algomim-models.json
+~/.codex/algomim-models.lock.json
 ~/.codex/algomim-auth.ps1   # Windows
 ~/.codex/algomim-auth.sh    # macOS/Linux
 ```
@@ -61,6 +62,11 @@ small auth helper, the helper resolves the shared Algomim credential, and Codex
 sends that bearer token to the Algomim Model API. The auth helper contains no
 API key.
 
+The profile also disables Codex personality injection for Algomim. Algomim does
+not advertise Codex personality templates; its behavior comes from the neutral
+model metadata and the hosted Algomim model/kernel instead of a client-owned
+identity prompt.
+
 See the cross-client credential contract in
 [`../docs/credentials.md`](../docs/credentials.md).
 
@@ -69,13 +75,13 @@ See the cross-client credential contract in
 Windows PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/algomim/release/v0.1.0/codex/install.ps1 | iex
+irm https://raw.githubusercontent.com/algomim/release/v0.1.1/codex/install.ps1 | iex
 ```
 
 macOS/Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.1.0/codex/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.1.1/codex/install.sh | sh
 ```
 
 The installer uses `https://api.algomim.com/v1`. On the first install it asks
@@ -92,13 +98,13 @@ For a pilot endpoint:
 download the installer and pass the provided URL explicitly:
 
 ```powershell
-irm https://raw.githubusercontent.com/algomim/release/v0.1.0/codex/install.ps1 -OutFile install.ps1
+irm https://raw.githubusercontent.com/algomim/release/v0.1.1/codex/install.ps1 -OutFile install.ps1
 .\install.ps1 -BaseUrl "https://example.ngrok-free.dev/v1"
 Remove-Item .\install.ps1
 ```
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.1.0/codex/install.sh -o install.sh
+curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.1.1/codex/install.sh -o install.sh
 sh install.sh --base-url "https://example.ngrok-free.dev/v1"
 rm install.sh
 ```
@@ -139,13 +145,13 @@ The default profile is named `default`. A separate named profile can be
 installed without replacing it:
 
 ```powershell
-irm https://raw.githubusercontent.com/algomim/release/v0.1.0/codex/install.ps1 -OutFile install.ps1
+irm https://raw.githubusercontent.com/algomim/release/v0.1.1/codex/install.ps1 -OutFile install.ps1
 .\install.ps1 -CredentialProfile "work"
 Remove-Item .\install.ps1
 ```
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.1.0/codex/install.sh -o install.sh
+curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.1.1/codex/install.sh -o install.sh
 sh install.sh --credential-profile work
 rm install.sh
 ```
@@ -169,7 +175,7 @@ automation.
 Windows:
 
 ```powershell
-irm https://raw.githubusercontent.com/algomim/release/v0.1.0/codex/install.ps1 -OutFile install.ps1
+irm https://raw.githubusercontent.com/algomim/release/v0.1.1/codex/install.ps1 -OutFile install.ps1
 .\install.ps1 -ApiKey "sk-..."
 Remove-Item .\install.ps1
 ```
@@ -177,7 +183,7 @@ Remove-Item .\install.ps1
 macOS/Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.1.0/codex/install.sh -o install.sh
+curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.1.1/codex/install.sh -o install.sh
 sh install.sh --api-key "sk-..."
 rm install.sh
 ```
@@ -209,6 +215,7 @@ Doctor checks:
 - Codex is on PATH.
 - Algomim profile exists.
 - Algomim model catalog exists.
+- The catalog SHA-256 matches its generated lock file.
 - Auth helper exists.
 - A credential resolves from `ALGOMIM_API_KEY` or the selected shared profile.
 - Shared credential permissions are restricted.
@@ -259,22 +266,28 @@ preserved.
 client metadata for its `/model` menu and local tool wiring. The
 `algomim-models.json` file provides that Codex-specific metadata.
 
+The catalog and adjacent checksum lock are generated from the canonical
+Inference model definitions and versioned with this release. Install and update
+verify the checksum before replacing local files. Do not edit either artifact
+manually. Model metadata changes reach installed clients through the normal
+Algomim update lifecycle.
+
 The catalog is not the model. Algomim's actual behavior, AEC kernel, validation,
 tool handling, and provider routing live behind the Algomim API.
 
 ## Troubleshooting
 
-| Symptom | Meaning | Fix |
-| --- | --- | --- |
-| `/model` does not show Algomim | Profile or catalog was not loaded | Restart Codex with `codex --profile algomim` |
-| `Model metadata for algomim not found` | Catalog path is wrong or missing | Run installer again, then restart Codex |
-| `Configured service tier priority...` | A previous OpenAI tier leaked into the profile | Ensure `service_tier = "default"` is in `algomim.config.toml` |
-| `tools must contain only...` | Catalog/profile is stale or the backend is older than the Codex contract | Update Algomim setup and retry |
-| `401` | API key is missing, invalid, or revoked | Rotate the selected Algomim credential and retry |
-| `403` | API user is suspended or expired | Contact the Algomim operator |
-| `404` | Model is not visible for this key | Check the key's allowed models |
-| `429` | Token quota or active request limit reached | Ask the operator to inspect usage |
-| `502` / `504` | Upstream inference failed or timed out | Share the request ID with the operator |
+| Symptom                                | Meaning                                                                  | Fix                                                           |
+| -------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------- |
+| `/model` does not show Algomim         | Profile or catalog was not loaded                                        | Restart Codex with `codex --profile algomim`                  |
+| `Model metadata for algomim not found` | Catalog path is wrong or missing                                         | Run installer again, then restart Codex                       |
+| `Configured service tier priority...`  | A previous OpenAI tier leaked into the profile                           | Ensure `service_tier = "default"` is in `algomim.config.toml` |
+| `tools must contain only...`           | Catalog/profile is stale or the backend is older than the Codex contract | Update Algomim setup and retry                                |
+| `401`                                  | API key is missing, invalid, or revoked                                  | Rotate the selected Algomim credential and retry              |
+| `403`                                  | API user is suspended or expired                                         | Contact the Algomim operator                                  |
+| `404`                                  | Model is not visible for this key                                        | Check the key's allowed models                                |
+| `429`                                  | Token quota or active request limit reached                              | Ask the operator to inspect usage                             |
+| `502` / `504`                          | Upstream inference failed or timed out                                   | Share the request ID with the operator                        |
 
 ## Official Codex behavior used here
 

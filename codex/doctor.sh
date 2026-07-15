@@ -51,6 +51,14 @@ json_number_field() {
   sed -n "s/^[[:space:]]*\"$field\"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p" "$path" | head -n 1
 }
 
+sha256_file() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+    return
+  fi
+  shasum -a 256 "$1" | awk '{print $1}'
+}
+
 validate_profile_name() {
   case "$1" in
     ""|*[!A-Za-z0-9._-]*|[._-]*)
@@ -145,6 +153,7 @@ fi
 
 PROFILE_PATH="$CODEX_HOME/algomim.config.toml"
 CATALOG_PATH="$CODEX_HOME/algomim-models.json"
+CATALOG_LOCK_PATH="$CODEX_HOME/algomim-models.lock.json"
 LEGACY_KEY_PATH="$CODEX_HOME/algomim.key"
 AUTH_SCRIPT_PATH="$CODEX_HOME/algomim-auth.sh"
 CREDENTIALS_PATH="$ALGOMIM_HOME/credentials"
@@ -194,6 +203,21 @@ if [ -f "$CATALOG_PATH" ]; then
   fi
 else
   fail "Model catalog is missing: $CATALOG_PATH"
+fi
+
+if [ -f "$CATALOG_PATH" ] && [ -f "$CATALOG_LOCK_PATH" ]; then
+  EXPECTED_CATALOG_HASH=$(json_field catalogSha256 "$CATALOG_LOCK_PATH" | tr 'A-F' 'a-f')
+  CATALOG_GENERATOR=$(json_field generator "$CATALOG_LOCK_PATH")
+  ACTUAL_CATALOG_HASH=$(sha256_file "$CATALOG_PATH" | tr 'A-F' 'a-f')
+  if printf '%s' "$EXPECTED_CATALOG_HASH" | grep -Eq '^[a-f0-9]{64}$' &&
+    [ "$CATALOG_GENERATOR" = "@algomim/inference/codex-model-catalog" ] &&
+    [ "$ACTUAL_CATALOG_HASH" = "$EXPECTED_CATALOG_HASH" ]; then
+    ok "Model catalog checksum is valid."
+  else
+    fail "Model catalog checksum does not match its lock file."
+  fi
+else
+  fail "Model catalog lock is missing: $CATALOG_LOCK_PATH"
 fi
 
 if [ -x "$AUTH_SCRIPT_PATH" ]; then
@@ -264,6 +288,24 @@ if [ -f "$PROFILE_PATH" ]; then
     ok "Profile uses the Responses wire API."
   else
     fail "Profile does not use the Responses wire API."
+  fi
+
+  if awk '
+    /^[[:space:]]*\[[^][]+\][[:space:]]*$/ {
+      section = $0
+      sub(/^[[:space:]]*\[/, "", section)
+      sub(/\][[:space:]]*$/, "", section)
+      next
+    }
+    section == "features" &&
+      /^[[:space:]]*personality[[:space:]]*=[[:space:]]*false[[:space:]]*$/ {
+      found = 1
+    }
+    END { exit found ? 0 : 1 }
+  ' "$PROFILE_PATH"; then
+    ok "Profile disables unsupported Codex personality injection."
+  else
+    fail "Profile does not disable unsupported Codex personality injection."
   fi
 
   BASE_URL=$(sed -n 's/^[[:space:]]*base_url[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$PROFILE_PATH" | head -n 1)

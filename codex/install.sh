@@ -5,7 +5,7 @@ BASE_URL=""
 API_KEY=""
 API_KEY_WAS_EXPLICIT="0"
 RELEASE_REF=""
-RELEASE_VERSION="0.1.0"
+RELEASE_VERSION="0.1.1"
 CREDENTIAL_PROFILE="${ALGOMIM_PROFILE:-default}"
 SKIP_KEY="0"
 
@@ -145,6 +145,14 @@ json_field() {
     sed 's/\\r//g; s/\\t/	/g; s/\\"/"/g; s/\\\\/\\/g'
 }
 
+sha256_file() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+    return
+  fi
+  shasum -a 256 "$1" | awk '{print $1}'
+}
+
 atomic_copy() {
   source="$1"
   destination="$2"
@@ -158,7 +166,7 @@ atomic_copy() {
   chmod "$mode" "$destination"
 }
 
-install_release_file() {
+install_release_file() (
   name="$1"
   destination="$2"
   mode="$3"
@@ -174,7 +182,33 @@ install_release_file() {
   atomic_copy "$download_path" "$destination" "$mode"
   rm -f "$download_path"
   trap - HUP INT TERM EXIT
-}
+)
+
+install_model_catalog() (
+  catalog_destination="$1"
+  lock_destination="$2"
+  temporary_root=$(mktemp -d)
+  trap 'rm -rf "$temporary_root"' HUP INT TERM EXIT
+  catalog_source="$temporary_root/algomim-models.json"
+  lock_source="$temporary_root/algomim-models.lock.json"
+
+  install_release_file "algomim-models.json" "$catalog_source" 600
+  install_release_file "algomim-models.lock.json" "$lock_source" 600
+  expected_hash=$(json_field catalogSha256 "$lock_source" | tr 'A-F' 'a-f')
+  actual_hash=$(sha256_file "$catalog_source" | tr 'A-F' 'a-f')
+  generator=$(json_field generator "$lock_source")
+  if ! printf '%s' "$expected_hash" | grep -Eq '^[a-f0-9]{64}$' ||
+    [ "$generator" != "@algomim/inference/codex-model-catalog" ] ||
+    [ "$actual_hash" != "$expected_hash" ]; then
+    echo "Model catalog SHA-256 verification failed." >&2
+    exit 1
+  fi
+
+  atomic_copy "$lock_source" "$lock_destination" 600
+  atomic_copy "$catalog_source" "$catalog_destination" 600
+  rm -rf "$temporary_root"
+  trap - HUP INT TERM EXIT
+)
 
 credential_get() {
   path="$1"
@@ -358,6 +392,7 @@ ALGOMIM_HOME=$(CDPATH= cd -- "$ALGOMIM_HOME" && pwd)
 
 PROFILE_PATH="$CODEX_HOME/algomim.config.toml"
 CATALOG_PATH="$CODEX_HOME/algomim-models.json"
+CATALOG_LOCK_PATH="$CODEX_HOME/algomim-models.lock.json"
 LEGACY_KEY_PATH="$CODEX_HOME/algomim.key"
 AUTH_SCRIPT_PATH="$CODEX_HOME/algomim-auth.sh"
 CREDENTIALS_PATH="$ALGOMIM_HOME/credentials"
@@ -438,8 +473,8 @@ case "$0" in
     SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" 2>/dev/null && pwd || printf '')
     ;;
 esac
-install_release_file "algomim-models.json" "$CATALOG_PATH" 600
-log "Installed model catalog at $CATALOG_PATH"
+install_model_catalog "$CATALOG_PATH" "$CATALOG_LOCK_PATH"
+log "Installed and verified model catalog at $CATALOG_PATH"
 
 ALGOMIM_HOME_SHELL=$(shell_single_quote "$ALGOMIM_HOME")
 CREDENTIAL_PROFILE_SHELL=$(shell_single_quote "$CREDENTIAL_PROFILE")
@@ -534,7 +569,6 @@ model_provider = "algomim"
 model_catalog_json = "$CATALOG_TOML"
 web_search = "disabled"
 service_tier = "default"
-personality = "none"
 model_reasoning_effort = "medium"
 
 [model_providers.algomim]
@@ -547,6 +581,9 @@ command = "/bin/sh"
 args = ["$AUTH_SCRIPT_TOML"]
 timeout_ms = 5000
 refresh_interval_ms = 300000
+
+[features]
+personality = false
 EOF
 atomic_copy "$GENERATED_PROFILE" "$PROFILE_PATH" 600
 rm -f "$GENERATED_PROFILE"

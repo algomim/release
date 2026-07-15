@@ -125,7 +125,7 @@ restore_installation() {
   integration_home="$2"
   backup_root="$3"
 
-  for name in algomim.config.toml algomim-models.json algomim-auth.sh; do
+  for name in algomim.config.toml algomim-models.json algomim-models.lock.json algomim-auth.sh; do
     rm -f "$codex_home/$name"
     if [ -f "$backup_root/codex/$name" ]; then
       cp "$backup_root/codex/$name" "$codex_home/$name"
@@ -271,7 +271,7 @@ STAGE_ROOT="$TEMP_ROOT/stage"
 mkdir -p "$STAGE_ROOT"
 tar -xzf "$ARTIFACT_PATH" -C "$STAGE_ROOT"
 STAGED_CODEX="$STAGE_ROOT/codex"
-for required in install.sh doctor.sh update.sh release.json; do
+for required in install.sh doctor.sh update.sh release.json algomim-models.json algomim-models.lock.json; do
   [ -f "$STAGED_CODEX/$required" ] || {
     echo "Release artifact is missing $required." >&2
     exit 1
@@ -289,7 +289,7 @@ fi
 mkdir -p "$CODEX_HOME"
 BACKUP_ROOT="$TEMP_ROOT/backup"
 mkdir -p "$BACKUP_ROOT/codex" "$BACKUP_ROOT/integration"
-for name in algomim.config.toml algomim-models.json algomim-auth.sh; do
+for name in algomim.config.toml algomim-models.json algomim-models.lock.json algomim-auth.sh; do
   if [ -f "$CODEX_HOME/$name" ]; then
     cp "$CODEX_HOME/$name" "$BACKUP_ROOT/codex/$name"
   fi

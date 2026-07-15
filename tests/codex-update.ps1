@@ -17,6 +17,20 @@ function Write-JsonFile {
 }
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
+$releaseContract = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "codex\release.json") | ConvertFrom-Json
+$currentVersion = [string] $releaseContract.version
+$currentTag = [string] $releaseContract.releaseTag
+$invalidVersion = if ($currentVersion -ceq "9999.9999.9999") { "9999.9999.9998" } else { "9999.9999.9999" }
+$invalidTag = "v$invalidVersion"
+$releaseTags = @(& git -C $repoRoot tag --list "v*.*.*" --sort=-version:refname)
+if ($LASTEXITCODE -ne 0) {
+  throw "Could not list release tags."
+}
+$previousTag = $releaseTags | Where-Object { $_ -cne $currentTag } | Select-Object -First 1
+if ([string]::IsNullOrWhiteSpace($previousTag)) {
+  throw "A previous release tag is required for the update compatibility test."
+}
+
 $testRoot = Join-Path $repoRoot (".update-test-{0}" -f [Guid]::NewGuid().ToString("N"))
 $artifacts = Join-Path $testRoot "artifacts"
 $codexHome = Join-Path $testRoot "codex"
@@ -37,21 +51,33 @@ try {
   $env:ALGOMIM_HOME = $algomimHome
   Remove-Item Env:ALGOMIM_API_KEY -ErrorAction SilentlyContinue
 
-  & (Join-Path $repoRoot "tools\build-release.ps1") -Version v0.1.0 -OutputDirectory $artifacts *> $null
-  & (Join-Path $repoRoot "codex\install.ps1") `
+  & (Join-Path $repoRoot "tools\build-release.ps1") -Version $currentTag -OutputDirectory $artifacts *> $null
+
+  $previousArchive = Join-Path $testRoot "previous-release.zip"
+  & git -C $repoRoot archive --format=zip "--output=$previousArchive" $previousTag codex
+  if ($LASTEXITCODE -ne 0) {
+    throw "Could not archive previous release $previousTag."
+  }
+  $previousSource = Join-Path $testRoot "previous-release"
+  Expand-Archive -LiteralPath $previousArchive -DestinationPath $previousSource
+  $previousContract = Get-Content -Raw -LiteralPath (Join-Path $previousSource "codex\release.json") | ConvertFrom-Json
+  Assert-Equal $previousTag ([string] $previousContract.releaseTag) "previous release contract matches its tag"
+
+  & (Join-Path $previousSource "codex\install.ps1") `
     -ApiKey $key `
-    -ReleaseVersion 0.0.9 `
-    -ReleaseRef v0.0.9 *> $null
+    -ReleaseVersion ([string] $previousContract.version) `
+    -ReleaseRef $previousTag *> $null
 
   $statePath = Join-Path $algomimHome "integrations\codex\state.json"
   $credentialsPath = Join-Path $algomimHome "credentials"
   $initialState = Get-Content -Raw -LiteralPath $statePath | ConvertFrom-Json
-  $updateOutput = (& (Join-Path $repoRoot "codex\update.ps1") `
+  Assert-Equal ([string] $previousContract.version) ([string] $initialState.version) "test starts from the previous published release"
+  $updateOutput = (& (Join-Path $algomimHome "integrations\codex\update.ps1") `
       -ManifestUrl (Join-Path $artifacts "manifest.json") `
       -ArtifactBaseUrl $artifacts *>&1 | Out-String)
 
   $updatedState = Get-Content -Raw -LiteralPath $statePath | ConvertFrom-Json
-  Assert-Equal "0.1.0" ([string] $updatedState.version) "verified release updates state"
+  Assert-Equal $currentVersion ([string] $updatedState.version) "previous updater installs the verified current release"
   Assert-Equal ([string] $initialState.installedAt) ([string] $updatedState.installedAt) "update preserves installation timestamp"
   Assert-True ((Get-Content -Raw -LiteralPath $credentialsPath).Contains($key)) "update preserves shared credential"
   Assert-True (-not $updateOutput.Contains($key)) "update output never contains the credential"
@@ -62,23 +88,23 @@ try {
   $credentialBeforeRollback = Get-Content -Raw -LiteralPath $credentialsPath
 
   $badStage = Join-Path $testRoot "bad-stage"
-  Expand-Archive -LiteralPath (Join-Path $artifacts "algomim-codex-windows-v0.1.0.zip") -DestinationPath $badStage
+  Expand-Archive -LiteralPath (Join-Path $artifacts "algomim-codex-windows-$currentTag.zip") -DestinationPath $badStage
   $badContractPath = Join-Path $badStage "codex\release.json"
   $badContract = Get-Content -Raw -LiteralPath $badContractPath | ConvertFrom-Json
-  $badContract.version = "0.2.0"
-  $badContract.releaseTag = "v0.2.0"
+  $badContract.version = $invalidVersion
+  $badContract.releaseTag = $invalidTag
   Write-JsonFile -Path $badContractPath -Value $badContract
   Write-JsonFile -Path (Join-Path $badStage "codex\algomim-models.json") -Value ([ordered] @{ models = @() })
 
-  $badArtifactName = "algomim-codex-windows-v0.2.0.zip"
+  $badArtifactName = "algomim-codex-windows-$invalidTag.zip"
   $badArtifactPath = Join-Path $artifacts $badArtifactName
   Compress-Archive -Path (Join-Path $badStage "codex") -DestinationPath $badArtifactPath
   $badHash = (Get-FileHash -LiteralPath $badArtifactPath -Algorithm SHA256).Hash.ToLowerInvariant()
   $badManifest = [ordered] @{
     schemaVersion = 1
     integration = "codex"
-    version = "0.2.0"
-    releaseTag = "v0.2.0"
+    version = $invalidVersion
+    releaseTag = $invalidTag
     channel = "pilot"
     artifacts = [ordered] @{
       windows = [ordered] @{ file = $badArtifactName; format = "zip"; sha256 = $badHash }
