@@ -147,6 +147,9 @@ fi
 if [ -z "$CODEX_HOME" ]; then
   CODEX_HOME="${STATE_CODEX_HOME:-$HOME/.codex}"
 fi
+if [ -d "$CODEX_HOME" ]; then
+  CODEX_HOME=$(CDPATH= cd -- "$CODEX_HOME" && pwd)
+fi
 if [ -z "$CREDENTIAL_PROFILE" ]; then
   CREDENTIAL_PROFILE="${STATE_CREDENTIAL_PROFILE:-default}"
 fi

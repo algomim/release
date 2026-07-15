@@ -87,7 +87,7 @@ fi
 STATE_PATH="$ALGOMIM_HOME/integrations/codex/state.json"
 assert_file "$STATE_PATH" "installer must record integration state"
 STATE_VERSION=$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$STATE_PATH")
-assert_equal "0.1.1" "$STATE_VERSION" "installer must record its release version"
+assert_equal "0.1.2" "$STATE_VERSION" "installer must record its release version"
 grep -F "$DEFAULT_KEY" "$STATE_PATH" >/dev/null 2>&1 && fail "installation state must not contain credential"
 for name in install.sh update.sh doctor.sh uninstall.sh release.json; do
   assert_file "$ALGOMIM_HOME/integrations/codex/$name" "installer must write lifecycle file $name"
@@ -97,6 +97,12 @@ case "$(uname -s)" in
   *) assert_equal "600" "$(file_mode "$CREDENTIALS")" "credential file mode must be 600" ;;
 esac
 assert_equal "$DEFAULT_KEY" "$($CODEX_HOME/algomim-auth.sh)" "auth helper must resolve the stored profile"
+if ! CODEX_HOME="$TEST_ROOT//codex/" \
+  sh "$ALGOMIM_HOME/integrations/codex/doctor.sh" \
+  --credential-profile default \
+  --skip-api-check >/dev/null 2>&1; then
+  fail "doctor must normalize redundant separators in CODEX_HOME"
+fi
 
 ALGOMIM_API_KEY="$OVERRIDE_KEY"
 export ALGOMIM_API_KEY

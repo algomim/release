@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "integration": "codex",
-  "version": "0.1.1",
-  "releaseTag": "v0.1.1",
+  "version": "0.1.2",
+  "releaseTag": "v0.1.2",
   "channel": "pilot",
   "repository": "algomim/release"
 }

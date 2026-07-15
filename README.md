@@ -34,13 +34,13 @@ release repository. See
 Windows PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/algomim/release/v0.1.1/codex/install.ps1 | iex
+irm https://raw.githubusercontent.com/algomim/release/v0.1.2/codex/install.ps1 | iex
 ```
 
 macOS/Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.1.1/codex/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.1.2/codex/install.sh | sh
 ```
 
 Then start Codex with the Algomim profile:
@@ -71,6 +71,6 @@ hand-authored model metadata.
 - Keep API keys in the shared Algomim credential store, never in a
   client-owned directory.
 - Prefer versioned release URLs for customer-facing instructions once a release
-  is cut, for example `/v0.1.1/codex/install.ps1`.
+  is cut, for example `/v0.1.2/codex/install.ps1`.
 - Never move an existing release tag or replace published release assets; ship
   a new semantic version instead.

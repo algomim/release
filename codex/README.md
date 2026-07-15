@@ -75,13 +75,13 @@ See the cross-client credential contract in
 Windows PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/algomim/release/v0.1.1/codex/install.ps1 | iex
+irm https://raw.githubusercontent.com/algomim/release/v0.1.2/codex/install.ps1 | iex
 ```
 
 macOS/Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.1.1/codex/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.1.2/codex/install.sh | sh
 ```
 
 The installer uses `https://api.algomim.com/v1`. On the first install it asks
@@ -98,13 +98,13 @@ For a pilot endpoint:
 download the installer and pass the provided URL explicitly:
 
 ```powershell
-irm https://raw.githubusercontent.com/algomim/release/v0.1.1/codex/install.ps1 -OutFile install.ps1
+irm https://raw.githubusercontent.com/algomim/release/v0.1.2/codex/install.ps1 -OutFile install.ps1
 .\install.ps1 -BaseUrl "https://example.ngrok-free.dev/v1"
 Remove-Item .\install.ps1
 ```
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.1.1/codex/install.sh -o install.sh
+curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.1.2/codex/install.sh -o install.sh
 sh install.sh --base-url "https://example.ngrok-free.dev/v1"
 rm install.sh
 ```
@@ -145,13 +145,13 @@ The default profile is named `default`. A separate named profile can be
 installed without replacing it:
 
 ```powershell
-irm https://raw.githubusercontent.com/algomim/release/v0.1.1/codex/install.ps1 -OutFile install.ps1
+irm https://raw.githubusercontent.com/algomim/release/v0.1.2/codex/install.ps1 -OutFile install.ps1
 .\install.ps1 -CredentialProfile "work"
 Remove-Item .\install.ps1
 ```
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.1.1/codex/install.sh -o install.sh
+curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.1.2/codex/install.sh -o install.sh
 sh install.sh --credential-profile work
 rm install.sh
 ```
@@ -175,7 +175,7 @@ automation.
 Windows:
 
 ```powershell
-irm https://raw.githubusercontent.com/algomim/release/v0.1.1/codex/install.ps1 -OutFile install.ps1
+irm https://raw.githubusercontent.com/algomim/release/v0.1.2/codex/install.ps1 -OutFile install.ps1
 .\install.ps1 -ApiKey "sk-..."
 Remove-Item .\install.ps1
 ```
@@ -183,7 +183,7 @@ Remove-Item .\install.ps1
 macOS/Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.1.1/codex/install.sh -o install.sh
+curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.1.2/codex/install.sh -o install.sh
 sh install.sh --api-key "sk-..."
 rm install.sh
 ```
