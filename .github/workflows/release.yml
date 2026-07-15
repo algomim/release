@@ -1,0 +1,68 @@
+name: Publish release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  test-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate PowerShell lifecycle
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tests/codex-credentials.ps1
+      - name: Validate PowerShell update and rollback
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tests/codex-update.ps1
+
+  test-posix:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate POSIX lifecycle
+        run: sh tests/codex-credentials.sh
+      - name: Validate POSIX update and rollback
+        run: sh tests/codex-update.sh
+
+  publish:
+    needs: [test-windows, test-posix]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate release tag
+        shell: powershell
+        run: |
+          $contract = Get-Content -Raw codex/release.json | ConvertFrom-Json
+          $expected = "v$($contract.version)"
+          if ($env:GITHUB_REF_NAME -cne $expected) {
+            throw "Tag $env:GITHUB_REF_NAME does not match codex/release.json ($expected)."
+          }
+      - name: Build release artifacts
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/build-release.ps1 -Version "${{ github.ref_name }}"
+      - name: Publish immutable version assets
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          gh release create $tag `
+            dist/manifest.json `
+            dist/SHA256SUMS `
+            "dist/algomim-codex-windows-$tag.zip" `
+            "dist/algomim-codex-posix-$tag.tar.gz" `
+            --verify-tag `
+            --title "Algomim Release $env:GITHUB_REF_NAME" `
+            --generate-notes `
+            --latest

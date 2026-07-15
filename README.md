@@ -22,9 +22,11 @@ index. `Future` entries reserve a stable integration ID and directory only;
 they are not installable or advertised as compatible yet.
 
 Each integration is self-contained. Client-specific configuration, installers,
-health checks, and uninstallers stay in that client's directory. API protocol
-compatibility remains in Algomim's hosted services and is never implemented in
-this public release repository. See
+health checks, and uninstallers stay in that client's directory. Integrations
+reuse the product-owned credential store documented in
+[`docs/credentials.md`](./docs/credentials.md). API protocol compatibility
+remains in Algomim's hosted services and is never implemented in this public
+release repository. See
 [`docs/integration-standard.md`](./docs/integration-standard.md).
 
 ## Codex quick install
@@ -32,13 +34,13 @@ this public release repository. See
 Windows PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/algomim/release/main/codex/install.ps1 | iex
+irm https://raw.githubusercontent.com/algomim/release/v0.1.0/codex/install.ps1 | iex
 ```
 
 macOS/Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/algomim/release/main/codex/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.1.0/codex/install.sh | sh
 ```
 
 Then start Codex with the Algomim profile:
@@ -49,6 +51,10 @@ codex --profile algomim
 
 Plain `codex` keeps using the user's existing OpenAI configuration.
 
+Release packaging, checksums, installed state, update, and rollback are
+documented in
+[`docs/release-lifecycle.md`](./docs/release-lifecycle.md).
+
 ## Repository rules
 
 - Keep this repository public-safe.
@@ -58,5 +64,9 @@ Plain `codex` keeps using the user's existing OpenAI configuration.
 - Do not publish placeholder installers for `Future` integrations.
 - Keep every integration isolated from the user's configuration for other AI
   clients.
+- Keep API keys in the shared Algomim credential store, never in a
+  client-owned directory.
 - Prefer versioned release URLs for customer-facing instructions once a release
   is cut, for example `/v0.1.0/codex/install.ps1`.
+- Never move an existing release tag or replace published release assets; ship
+  a new semantic version instead.

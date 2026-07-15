@@ -48,11 +48,16 @@ Before changing an integration from `future` to `pilot`:
    tool-call, error, and authentication tests.
 2. Installation must be idempotent and must not overwrite unrelated user
    configuration.
-3. Uninstall must remove only files owned by Algomim.
+3. Uninstall must remove only files owned by that integration and preserve
+   shared Algomim credentials by default.
 4. Doctor must diagnose the local configuration without printing secrets.
 5. Supported operating systems and minimum client versions must be documented.
 6. Downloaded artifacts must be pinned to a versioned release before customer
    distribution.
+7. Update must verify artifact checksums and roll back owned files when local
+   post-install validation fails.
+8. Update and uninstall must not mutate shared credentials unless credential
+   removal was explicitly requested.
 
 ## Security boundary
 
@@ -60,6 +65,10 @@ Never commit API keys, customer data, private provider names, internal routing,
 hidden prompts, or backend source code. Client secrets must not be embedded in
 templates or command history. Logs and diagnostics must redact credentials.
 
-Shared helpers should be extracted only after two integrations require the same
-behavior. Client-specific configuration formats and secret-storage mechanisms
-must remain separate.
+All integrations use the credential ownership, resolution order, and lifecycle
+defined in [`credentials.md`](./credentials.md). Client directories may contain
+thin auth adapters, but they must not become an independent secret store.
+
+Shared implementation helpers should be extracted only after two integrations
+require the same behavior. Client-specific configuration formats remain
+separate.

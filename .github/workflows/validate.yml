@@ -1,0 +1,34 @@
+name: Validate release artifacts
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate PowerShell credential contract
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tests/codex-credentials.ps1
+      - name: Validate PowerShell update and rollback
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tests/codex-update.ps1
+
+  posix:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate POSIX credential contract
+        run: sh tests/codex-credentials.sh
+      - name: Validate POSIX update and rollback
+        run: sh tests/codex-update.sh

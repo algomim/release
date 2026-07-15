@@ -2,4 +2,6 @@
 Thumbs.db
 *.log
 *.tmp
-
+.credential-test-*
+.update-test-*
+dist/
