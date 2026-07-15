@@ -1,0 +1,28 @@
+name: Audit macOS published v0.1.1
+
+on:
+  push:
+    branches:
+      - audit/macos-published-v011
+
+permissions:
+  contents: read
+
+jobs:
+  published-smoke:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trace published POSIX lifecycle
+        shell: bash
+        run: |
+          set +e
+          log_path="$RUNNER_TEMP/algomim-published-v011.log"
+          sh -x tests/codex-published-lifecycle.sh --tag v0.1.1 >"$log_path" 2>&1
+          status=$?
+          cat "$log_path"
+          if [ "$status" -ne 0 ]; then
+            details=$(tail -n 40 "$log_path" | tr '\n' ' ' | sed 's/%/%25/g')
+            printf '::error title=macOS published smoke trace::%s\n' "$details"
+          fi
+          exit "$status"
