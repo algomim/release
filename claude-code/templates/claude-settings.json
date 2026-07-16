@@ -1,0 +1,10 @@
+{
+  "model": "algomim",
+  "env": {
+    "ANTHROPIC_BASE_URL": "{{BASE_URL}}",
+    "ANTHROPIC_MODEL": "algomim",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "algomim",
+    "ANTHROPIC_CUSTOM_MODEL_OPTION": "algomim",
+    "ANTHROPIC_CUSTOM_MODEL_OPTION_NAME": "Algomim"
+  }
+}

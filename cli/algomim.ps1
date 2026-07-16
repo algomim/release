@@ -1,9 +1,8 @@
-param(
-  [Parameter(ValueFromRemainingArguments = $true)]
-  [string[]] $CliArguments
-)
-
+# No param block: PowerShell 5.1's -File binder swallows a literal "--"
+# (needed by "algomim run <client> -- <args>") when a parameter block is
+# present. $args receives every token verbatim, including "--".
 $ErrorActionPreference = "Stop"
+$CliArguments = @($args | ForEach-Object { [string] $_ })
 
 function Write-Usage {
   Write-Output @"
@@ -15,10 +14,11 @@ Usage:
   algomim version
   algomim help
 
-  algomim codex install [--profile <name>]
-  algomim codex update [--check]
-  algomim codex doctor [--offline]
-  algomim codex uninstall
+  algomim install <codex|claude> [--profile <name>]
+  algomim run <codex|claude> [-- <client arguments>]
+  algomim doctor [codex|claude] [--offline]
+  algomim update [codex|claude] [--check]
+  algomim uninstall <codex|claude>
 "@
 }
 
@@ -124,67 +124,157 @@ function Invoke-Logout {
   }
 }
 
-function Get-CodexLifecyclePath {
-  param([string] $Name)
-  $path = Join-Path $script:AlgomimHome "integrations\codex\$Name"
+$script:IntegrationIds = @("codex", "claude-code")
+
+function Resolve-IntegrationName {
+  param([string] $Token)
+  switch ($Token) {
+    "codex" { return "codex" }
+    "claude" { return "claude-code" }
+    "claude-code" { return "claude-code" }
+    default { Fail-Usage "Unknown integration: $Token. Valid integrations: codex, claude." }
+  }
+}
+
+function Get-IntegrationToken {
+  param([string] $Integration)
+  if ($Integration -eq "claude-code") { return "claude" }
+  return $Integration
+}
+
+function Get-IntegrationDisplayName {
+  param([string] $Integration)
+  if ($Integration -eq "claude-code") { return "Claude Code" }
+  return "Codex"
+}
+
+function Get-IntegrationLifecyclePath {
+  param([string] $Integration, [string] $Name)
+  $path = Join-Path $script:AlgomimHome "integrations\$Integration\$Name"
   if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
-    throw "Codex integration is not installed. Run 'algomim codex install'."
+    $token = Get-IntegrationToken $Integration
+    throw "$(Get-IntegrationDisplayName $Integration) integration is not installed. Run 'algomim install $token'."
   }
   return $path
 }
 
-function Invoke-CodexCommand {
-  param([string[]] $Arguments)
-  if ($Arguments.Count -eq 0) {
-    Fail-Usage "A Codex command is required."
+function Get-InstalledIntegrations {
+  $installed = @()
+  foreach ($integration in $script:IntegrationIds) {
+    $statePath = Join-Path $script:AlgomimHome "integrations\$integration\state.json"
+    if (Test-Path -LiteralPath $statePath -PathType Leaf) {
+      $installed += $integration
+    }
   }
-  $subcommand = $Arguments[0]
-  $options = @($Arguments | Select-Object -Skip 1)
-  switch ($subcommand) {
-    "install" {
-      $profile = ""
-      for ($index = 0; $index -lt $options.Count; $index++) {
-        if ($options[$index] -ne "--profile") {
-          Fail-Usage "Unknown codex install option: $($options[$index])"
-        }
-        $profile = Get-OptionValue $options ([ref] $index) "--profile"
-      }
-      $profile = Get-SelectedProfile $profile
-      $state = Read-CliState
-      $installer = Join-Path $script:AlgomimHome "cli\integrations\codex\install.ps1"
-      if (-not (Test-Path -LiteralPath $installer -PathType Leaf)) {
-        throw "The bundled Codex installer is missing. Re-run the versioned Algomim installer."
-      }
-      & $installer -AlgomimHome $script:AlgomimHome -CredentialProfile $profile -ReleaseRef ([string] $state.releaseTag) -ReleaseVersion ([string] $state.version) -SkipCliInstall
-      & (Get-CodexLifecyclePath "doctor.ps1") -AlgomimHome $script:AlgomimHome -CredentialProfile $profile -SkipApiCheck -ThrowOnFailure
+  return , $installed
+}
+
+function Invoke-InstallCommand {
+  param([string] $Integration, [string[]] $Options)
+  $profile = ""
+  for ($index = 0; $index -lt $Options.Count; $index++) {
+    if ($Options[$index] -ne "--profile") {
+      Fail-Usage "Unknown install option: $($Options[$index])"
     }
-    "update" {
-      $check = $false
-      foreach ($option in $options) {
-        if ($option -ne "--check") { Fail-Usage "Unknown codex update option: $option" }
-        $check = $true
-      }
-      $script = Get-CodexLifecyclePath "update.ps1"
-      if ($check) { & $script -AlgomimHome $script:AlgomimHome -CheckOnly }
-      else { & $script -AlgomimHome $script:AlgomimHome }
-    }
-    "doctor" {
-      $offline = $false
-      foreach ($option in $options) {
-        if ($option -ne "--offline") { Fail-Usage "Unknown codex doctor option: $option" }
-        $offline = $true
-      }
-      $script = Get-CodexLifecyclePath "doctor.ps1"
-      if ($offline) { & $script -AlgomimHome $script:AlgomimHome -SkipApiCheck -ThrowOnFailure }
-      else { & $script -AlgomimHome $script:AlgomimHome -ThrowOnFailure }
-    }
-    "uninstall" {
-      if ($options.Count -gt 0) { Fail-Usage "codex uninstall does not accept options." }
-      & (Get-CodexLifecyclePath "uninstall.ps1") -AlgomimHome $script:AlgomimHome
-      Write-Host "[algomim] Algomim CLI and shared credentials were preserved."
-    }
-    default { Fail-Usage "Unknown Codex command: $subcommand" }
+    $profile = Get-OptionValue $Options ([ref] $index) "--profile"
   }
+  $profile = Get-SelectedProfile $profile
+  $state = Read-CliState
+  $installer = Join-Path $script:AlgomimHome "cli\integrations\$Integration\install.ps1"
+  if (-not (Test-Path -LiteralPath $installer -PathType Leaf)) {
+    throw "The bundled $(Get-IntegrationDisplayName $Integration) installer is missing. Re-run the versioned Algomim installer."
+  }
+  & $installer -AlgomimHome $script:AlgomimHome -CredentialProfile $profile -ReleaseRef ([string] $state.releaseTag) -ReleaseVersion ([string] $state.version) -SkipCliInstall
+  & (Get-IntegrationLifecyclePath $Integration "doctor.ps1") -AlgomimHome $script:AlgomimHome -CredentialProfile $profile -SkipApiCheck -ThrowOnFailure
+}
+
+function Invoke-UpdateCommand {
+  param([string] $Integration, [bool] $CheckOnly)
+  $script = Get-IntegrationLifecyclePath $Integration "update.ps1"
+  if ($CheckOnly) { & $script -AlgomimHome $script:AlgomimHome -CheckOnly }
+  else { & $script -AlgomimHome $script:AlgomimHome }
+}
+
+function Invoke-DoctorCommand {
+  param([string] $Integration, [bool] $Offline)
+  $script = Get-IntegrationLifecyclePath $Integration "doctor.ps1"
+  if ($Offline) { & $script -AlgomimHome $script:AlgomimHome -SkipApiCheck -ThrowOnFailure }
+  else { & $script -AlgomimHome $script:AlgomimHome -ThrowOnFailure }
+}
+
+function Invoke-UninstallCommand {
+  param([string] $Integration, [string[]] $Options)
+  if ($Options.Count -gt 0) { Fail-Usage "uninstall does not accept options." }
+  & (Get-IntegrationLifecyclePath $Integration "uninstall.ps1") -AlgomimHome $script:AlgomimHome
+  Write-Host "[algomim] Algomim CLI and shared credentials were preserved."
+}
+
+function Get-RunCredential {
+  param([string] $Profile)
+  if (-not [string]::IsNullOrWhiteSpace($env:ALGOMIM_API_KEY)) {
+    $token = $env:ALGOMIM_API_KEY.Trim()
+    if ($token -match '[\x00-\x1F\x7F]') {
+      throw "ALGOMIM_API_KEY contains control characters."
+    }
+    return $token
+  }
+  $token = Get-AlgomimCredentialApiKey -Path $script:CredentialsPath -Profile $Profile
+  if ($null -eq $token) {
+    throw "No Algomim credential is available for profile '$Profile'. Run 'algomim login'."
+  }
+  return $token
+}
+
+function Invoke-RunCommand {
+  param([string] $Integration, [string[]] $Passthrough)
+  if ($Integration -eq "codex") {
+    [void] (Get-IntegrationLifecyclePath "codex" "state.json")
+    if (-not (Get-Command codex -ErrorAction SilentlyContinue)) {
+      throw "Codex CLI is not available on PATH. Install Codex first."
+    }
+    & codex --profile algomim @Passthrough
+    exit $LASTEXITCODE
+  }
+
+  $statePath = Get-IntegrationLifecyclePath "claude-code" "state.json"
+  $state = Get-Content -Raw -LiteralPath $statePath | ConvertFrom-Json
+  $settingsPath = Get-IntegrationLifecyclePath "claude-code" "settings.json"
+  if (-not (Get-Command claude -ErrorAction SilentlyContinue)) {
+    throw "Claude Code CLI is not available on PATH. Install Claude Code first."
+  }
+  $profile = if ($env:ALGOMIM_PROFILE) { $env:ALGOMIM_PROFILE.Trim() } else { [string] $state.credentialProfile }
+  if ([string]::IsNullOrWhiteSpace($profile)) { $profile = "default" }
+  Assert-AlgomimCredentialProfileName $profile
+  $token = Get-RunCredential $profile
+
+  $savedAuthToken = $env:ANTHROPIC_AUTH_TOKEN
+  try {
+    $env:ANTHROPIC_AUTH_TOKEN = $token
+    & claude --settings $settingsPath @Passthrough
+    $exitCode = $LASTEXITCODE
+  }
+  finally {
+    if ($null -eq $savedAuthToken) { Remove-Item Env:ANTHROPIC_AUTH_TOKEN -ErrorAction SilentlyContinue } else { $env:ANTHROPIC_AUTH_TOKEN = $savedAuthToken }
+  }
+  exit $exitCode
+}
+
+function Split-IntegrationArguments {
+  param([string[]] $Arguments, [string] $Verb, [bool] $IntegrationRequired)
+  $integration = ""
+  $options = @()
+  for ($index = 0; $index -lt $Arguments.Count; $index++) {
+    $argument = $Arguments[$index]
+    if (-not $argument.StartsWith("-") -and [string]::IsNullOrEmpty($integration)) {
+      $integration = Resolve-IntegrationName $argument
+      continue
+    }
+    $options += $argument
+  }
+  if ($IntegrationRequired -and [string]::IsNullOrEmpty($integration)) {
+    Fail-Usage "$Verb requires an integration: codex or claude."
+  }
+  return @{ Integration = $integration; Options = @($options) }
 }
 
 $script:AlgomimHome = if ($env:ALGOMIM_HOME) { $env:ALGOMIM_HOME } else { Join-Path $HOME ".algomim" }
@@ -200,7 +290,6 @@ if (-not (Test-Path -LiteralPath $credentialHelper -PathType Leaf)) {
 }
 . $credentialHelper
 
-if ($null -eq $CliArguments) { $CliArguments = @() }
 if ($CliArguments.Count -eq 0) {
   Write-Usage
   exit 0
@@ -209,6 +298,17 @@ if ($CliArguments.Count -eq 0) {
 try {
   $command = $CliArguments[0]
   $remaining = @($CliArguments | Select-Object -Skip 1)
+
+  if ($command -eq "codex" -or $command -eq "claude") {
+    # Legacy noun-first grammar (algomim codex install) rewrites silently to verb-first.
+    if ($remaining.Count -eq 0) {
+      Fail-Usage "An integration action is required: install, run, doctor, update, or uninstall."
+    }
+    $legacyNoun = $command
+    $command = $remaining[0]
+    $remaining = @($legacyNoun) + @($remaining | Select-Object -Skip 1)
+  }
+
   switch ($command) {
     "login" { Invoke-Login $remaining }
     "logout" { Invoke-Logout $remaining }
@@ -216,17 +316,87 @@ try {
       if ($remaining.Count -gt 0) { Fail-Usage "version does not accept options." }
       $state = Read-CliState
       Write-Output "Algomim CLI $($state.version) ($($state.releaseTag))"
-      $codexStatePath = Join-Path $script:AlgomimHome "integrations\codex\state.json"
-      if (Test-Path -LiteralPath $codexStatePath -PathType Leaf) {
-        $codexState = Get-Content -Raw -LiteralPath $codexStatePath | ConvertFrom-Json
-        Write-Output "Codex integration $($codexState.version)"
+      foreach ($integration in $script:IntegrationIds) {
+        $integrationStatePath = Join-Path $script:AlgomimHome "integrations\$integration\state.json"
+        if (Test-Path -LiteralPath $integrationStatePath -PathType Leaf) {
+          $integrationState = Get-Content -Raw -LiteralPath $integrationStatePath | ConvertFrom-Json
+          Write-Output "$(Get-IntegrationDisplayName $integration) integration $($integrationState.version)"
+        }
       }
     }
     "help" {
       if ($remaining.Count -gt 0) { Fail-Usage "help does not accept options." }
       Write-Usage
     }
-    "codex" { Invoke-CodexCommand $remaining }
+    "install" {
+      $parsed = Split-IntegrationArguments $remaining "install" $true
+      Invoke-InstallCommand $parsed.Integration $parsed.Options
+    }
+    "run" {
+      if ($remaining.Count -eq 0 -or $remaining[0].StartsWith("-")) {
+        Fail-Usage "run requires an integration: codex or claude."
+      }
+      $integration = Resolve-IntegrationName $remaining[0]
+      $passthrough = @($remaining | Select-Object -Skip 1)
+      if ($passthrough.Count -gt 0 -and $passthrough[0] -eq "--") {
+        $passthrough = @($passthrough | Select-Object -Skip 1)
+      }
+      Invoke-RunCommand $integration $passthrough
+    }
+    "doctor" {
+      $parsed = Split-IntegrationArguments $remaining "doctor" $false
+      $offline = $false
+      foreach ($option in $parsed.Options) {
+        if ($option -ne "--offline") { Fail-Usage "Unknown doctor option: $option" }
+        $offline = $true
+      }
+      if (-not [string]::IsNullOrEmpty($parsed.Integration)) {
+        Invoke-DoctorCommand $parsed.Integration $offline
+      }
+      else {
+        $installed = Get-InstalledIntegrations
+        if ($installed.Count -eq 0) {
+          throw "No Algomim integrations are installed. Run 'algomim install codex' or 'algomim install claude'."
+        }
+        $anyFailed = $false
+        foreach ($integration in $installed) {
+          Write-Host "[algomim] Doctor: $(Get-IntegrationDisplayName $integration)"
+          try {
+            Invoke-DoctorCommand $integration $offline
+          }
+          catch {
+            [Console]::Error.WriteLine("[algomim] $($_.Exception.Message)")
+            $anyFailed = $true
+          }
+        }
+        if ($anyFailed) { exit 1 }
+      }
+    }
+    "update" {
+      $parsed = Split-IntegrationArguments $remaining "update" $false
+      $check = $false
+      foreach ($option in $parsed.Options) {
+        if ($option -ne "--check") { Fail-Usage "Unknown update option: $option" }
+        $check = $true
+      }
+      if (-not [string]::IsNullOrEmpty($parsed.Integration)) {
+        Invoke-UpdateCommand $parsed.Integration $check
+      }
+      else {
+        $installed = Get-InstalledIntegrations
+        if ($installed.Count -eq 0) {
+          throw "No Algomim integrations are installed. Run 'algomim install codex' or 'algomim install claude'."
+        }
+        foreach ($integration in $installed) {
+          Write-Host "[algomim] Update: $(Get-IntegrationDisplayName $integration)"
+          Invoke-UpdateCommand $integration $check
+        }
+      }
+    }
+    "uninstall" {
+      $parsed = Split-IntegrationArguments $remaining "uninstall" $true
+      Invoke-UninstallCommand $parsed.Integration $parsed.Options
+    }
     default { Fail-Usage "Unknown command: $command" }
   }
 }

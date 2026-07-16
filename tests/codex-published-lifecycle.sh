@@ -89,7 +89,7 @@ curl -fsSL "https://github.com/algomim/release/releases/download/$TAG/$CLI_ARTIF
 tar -tzf "$CLI_ARCHIVE" | grep -F 'cli/algomim.sh' >/dev/null || { echo "Published CLI artifact is missing the POSIX dispatcher." >&2; exit 1; }
 
 sh "$INTEGRATION_HOME/doctor.sh" --credential-profile default --skip-api-check
-sh "$CLI" codex update --check
+sh "$CLI" update codex --check
 
 CREDENTIAL_HASH=$(sha256_file "$CREDENTIALS_PATH")
 UPDATE_OUTPUT=$(sh "$INTEGRATION_HOME/update.sh" --version "$VERSION" --force 2>&1)
@@ -97,17 +97,17 @@ case "$UPDATE_OUTPUT" in *"Verified "*"SHA-256"*) ;; *) echo "Update did not ver
 case "$UPDATE_OUTPUT" in *"$KEY"*) echo "Update output exposed the credential." >&2; exit 1 ;; esac
 [ "$(sha256_file "$CREDENTIALS_PATH")" = "$CREDENTIAL_HASH" ] || { echo "Update changed the credential." >&2; exit 1; }
 
-sh "$CLI" codex doctor --offline
-sh "$CLI" codex uninstall >/dev/null
+sh "$CLI" doctor codex --offline
+sh "$CLI" uninstall codex >/dev/null
 [ ! -f "$PROFILE_PATH" ] || { echo "Normal uninstall kept the profile." >&2; exit 1; }
 [ -f "$CREDENTIALS_PATH" ] || { echo "Normal uninstall removed shared credentials." >&2; exit 1; }
 [ -f "$CLI" ] || { echo "Normal uninstall removed the CLI." >&2; exit 1; }
 
-REINSTALL_OUTPUT=$(sh "$CLI" codex install --profile default 2>&1)
+REINSTALL_OUTPUT=$(sh "$CLI" install codex --profile default 2>&1)
 [ -f "$PROFILE_PATH" ] || { echo "Reinstall did not restore the profile." >&2; exit 1; }
 case "$REINSTALL_OUTPUT" in *"$KEY"*) echo "Reinstall output exposed the credential." >&2; exit 1 ;; esac
 
-sh "$CLI" codex uninstall >/dev/null
+sh "$CLI" uninstall codex >/dev/null
 sh "$CLI" logout --profile default --yes >/dev/null
 [ ! -f "$CREDENTIALS_PATH" ] || { echo "Explicit removal kept the final credential profile." >&2; exit 1; }
 [ -f "$CLI" ] || { echo "Logout removed the CLI." >&2; exit 1; }

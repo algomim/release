@@ -1,7 +1,7 @@
 param(
   [string] $AlgomimHome = "",
   [string] $ReleaseRef = "",
-  [string] $ReleaseVersion = "0.2.0",
+  [string] $ReleaseVersion = "0.3.0",
   [ValidateSet("User", "Process")]
   [string] $PathTarget = "User"
 )
@@ -83,18 +83,23 @@ if ([string]::IsNullOrWhiteSpace($AlgomimHome)) {
 $AlgomimHome = [System.IO.Path]::GetFullPath($AlgomimHome)
 $binDirectory = Join-Path $AlgomimHome "bin"
 $cliDirectory = Join-Path $AlgomimHome "cli"
-$supportDirectory = Join-Path $cliDirectory "integrations\codex"
+$codexSupportDirectory = Join-Path $cliDirectory "integrations\codex"
+$claudeCodeSupportDirectory = Join-Path $cliDirectory "integrations\claude-code"
 $statePath = Join-Path $cliDirectory "state.json"
 
-New-Item -ItemType Directory -Force -Path $binDirectory, $cliDirectory, $supportDirectory | Out-Null
+New-Item -ItemType Directory -Force -Path $binDirectory, $cliDirectory, $codexSupportDirectory, $claudeCodeSupportDirectory | Out-Null
 Install-RepositoryFile "cli\algomim.ps1" (Join-Path $binDirectory "algomim.ps1")
 Install-RepositoryFile "cli\algomim.cmd" (Join-Path $binDirectory "algomim.cmd")
 Install-RepositoryFile "shared\credential-store.ps1" (Join-Path $cliDirectory "credential-store.ps1")
 Install-RepositoryFile "cli\release.json" (Join-Path $cliDirectory "release.json")
 foreach ($name in @("algomim-models.json", "algomim-models.lock.json", "install.ps1", "update.ps1", "doctor.ps1", "uninstall.ps1", "release.json")) {
-  Install-RepositoryFile "codex\$name" (Join-Path $supportDirectory $name)
+  Install-RepositoryFile "codex\$name" (Join-Path $codexSupportDirectory $name)
 }
-Install-RepositoryFile "shared\credential-store.ps1" (Join-Path $supportDirectory "credential-store.ps1")
+Install-RepositoryFile "shared\credential-store.ps1" (Join-Path $codexSupportDirectory "credential-store.ps1")
+foreach ($name in @("install.ps1", "update.ps1", "doctor.ps1", "uninstall.ps1", "release.json")) {
+  Install-RepositoryFile "claude-code\$name" (Join-Path $claudeCodeSupportDirectory $name)
+}
+Install-RepositoryFile "shared\credential-store.ps1" (Join-Path $claudeCodeSupportDirectory "credential-store.ps1")
 
 $now = [DateTimeOffset]::UtcNow.ToString("o")
 $installedAt = $now

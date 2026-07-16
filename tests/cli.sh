@@ -53,8 +53,8 @@ CLI_STATE="$ALGOMIM_HOME/cli/state.json"
 CREDENTIALS="$ALGOMIM_HOME/credentials"
 assert_file "$CLI" "installer must write the shell CLI"
 assert_file "$CLI_STATE" "installer must write CLI state"
-assert_equal "0.2.0" "$(json_field version "$CLI_STATE")" "CLI state must record the release version"
-assert_equal "v0.2.0" "$(json_field releaseTag "$CLI_STATE")" "CLI state must record the immutable tag"
+assert_equal "0.3.0" "$(json_field version "$CLI_STATE")" "CLI state must record the release version"
+assert_equal "v0.3.0" "$(json_field releaseTag "$CLI_STATE")" "CLI state must record the immutable tag"
 grep -F "$DEFAULT_KEY" "$CLI_STATE" >/dev/null 2>&1 && fail "CLI state must not contain credentials"
 
 START_COUNT=$(grep -c '^# >>> algomim cli >>>$' "$ALGOMIM_SHELL_PROFILE")
@@ -66,8 +66,9 @@ sh "$INSTALL" --credential-profile default >/dev/null 2>&1
 assert_equal "1" "$(grep -c '^# >>> algomim cli >>>$' "$ALGOMIM_SHELL_PROFILE")" "reinstall must not duplicate PATH"
 assert_equal "$INSTALLED_AT" "$(json_field installedAt "$CLI_STATE")" "reinstall must preserve install time"
 
-sh "$CLI" version | grep -F 'Algomim CLI 0.2.0 (v0.2.0)' >/dev/null || fail "version must report CLI version"
-sh "$CLI" help | grep -F 'algomim codex doctor [--offline]' >/dev/null || fail "help must list lifecycle commands"
+sh "$CLI" version | grep -F 'Algomim CLI 0.3.0 (v0.3.0)' >/dev/null || fail "version must report CLI version"
+sh "$CLI" help | grep -F 'algomim doctor [codex|claude] [--offline]' >/dev/null || fail "help must list lifecycle commands"
+sh "$CLI" help | grep -F 'algomim run <codex|claude>' >/dev/null || fail "help must list the run command"
 LOGIN_OUTPUT=$(printf '%s\n' "$WORK_KEY" | sh "$CLI" login --profile work --api-key-stdin 2>&1)
 assert_equal "$WORK_KEY" "$(profile_key "$CREDENTIALS" work)" "login must create a named profile"
 case "$LOGIN_OUTPUT" in *"$WORK_KEY"*) fail "login output must not expose the API key" ;; esac
@@ -78,7 +79,9 @@ sh "$CLI" logout --profile work --yes >/dev/null
 [ -z "$(profile_key "$CREDENTIALS" work)" ] || fail "logout must remove the selected profile"
 assert_equal "$DEFAULT_KEY" "$(profile_key "$CREDENTIALS" default)" "logout must preserve unrelated profiles"
 
-sh "$CLI" codex doctor --offline >/dev/null
+sh "$CLI" doctor codex --offline >/dev/null
+LEGACY_DOCTOR_OUTPUT=$(sh "$CLI" codex doctor --offline 2>&1) || fail "legacy noun-first grammar must still work"
+case "$LEGACY_DOCTOR_OUTPUT" in *[Dd]eprecat*) fail "legacy grammar must not print a deprecation notice" ;; esac
 INTEGRATION_HOME="$ALGOMIM_HOME/integrations/codex"
 UPDATE_PATH="$INTEGRATION_HOME/update.sh"
 UPDATE_BACKUP="$TEST_ROOT/update.sh"
@@ -92,18 +95,21 @@ EOF
 chmod 700 "$UPDATE_PATH"
 ALGOMIM_CLI_TEST_MARKER="$UPDATE_MARKER"
 export ALGOMIM_CLI_TEST_MARKER
-sh "$CLI" codex update --check
+sh "$CLI" update codex --check
 assert_equal "--check" "$(cat "$UPDATE_MARKER")" "update --check must delegate to the lifecycle updater"
+rm -f "$UPDATE_MARKER"
+sh "$CLI" update --check
+assert_equal "--check" "$(cat "$UPDATE_MARKER")" "bare update must target every installed integration"
 cp "$UPDATE_BACKUP" "$UPDATE_PATH"
 chmod 700 "$UPDATE_PATH"
 unset ALGOMIM_CLI_TEST_MARKER
 
-sh "$CLI" codex uninstall >/dev/null
-[ ! -d "$INTEGRATION_HOME" ] || fail "codex uninstall must remove only the integration"
-assert_file "$CLI" "codex uninstall must preserve the CLI"
-assert_equal "$DEFAULT_KEY" "$(profile_key "$CREDENTIALS" default)" "codex uninstall must preserve credentials"
-sh "$CLI" codex install --profile default >/dev/null
-assert_file "$INTEGRATION_HOME/state.json" "codex install must repair a removed integration"
+sh "$CLI" uninstall codex >/dev/null
+[ ! -d "$INTEGRATION_HOME" ] || fail "uninstall codex must remove only the integration"
+assert_file "$CLI" "uninstall codex must preserve the CLI"
+assert_equal "$DEFAULT_KEY" "$(profile_key "$CREDENTIALS" default)" "uninstall codex must preserve credentials"
+sh "$CLI" install codex --profile default >/dev/null
+assert_file "$INTEGRATION_HOME/state.json" "install codex must repair a removed integration"
 if find "$ALGOMIM_HOME" -type f ! -path "$CREDENTIALS" -exec grep -F "$DEFAULT_KEY" {} + >/dev/null 2>&1; then
   fail "non-credential files must not contain the API key"
 fi

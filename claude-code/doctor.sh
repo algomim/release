@@ -1,0 +1,244 @@
+#!/usr/bin/env sh
+set -eu
+
+FAILED=0
+CREDENTIAL_PROFILE="${ALGOMIM_PROFILE:-}"
+SKIP_API_CHECK="0"
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --credential-profile)
+      CREDENTIAL_PROFILE="${2:-}"
+      shift 2
+      ;;
+    --skip-api-check)
+      SKIP_API_CHECK="1"
+      shift
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      exit 2
+      ;;
+  esac
+done
+
+ALGOMIM_HOME="${ALGOMIM_HOME:-$HOME/.algomim}"
+
+ok() {
+  printf '[ok] %s\n' "$1"
+}
+
+warn() {
+  printf '[warn] %s\n' "$1" >&2
+}
+
+fail() {
+  printf '[fail] %s\n' "$1" >&2
+  FAILED=1
+}
+
+json_field() {
+  field="$1"
+  path="$2"
+  sed -n "s/^[[:space:]]*\"$field\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" "$path" | head -n 1 |
+    sed 's/\\r//g; s/\\t/	/g; s/\\"/"/g; s/\\\\/\\/g'
+}
+
+json_number_field() {
+  field="$1"
+  path="$2"
+  sed -n "s/^[[:space:]]*\"$field\"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p" "$path" | head -n 1
+}
+
+credential_mode() {
+  path="$1"
+  if mode=$(stat -c '%a' "$path" 2>/dev/null); then
+    printf '%s' "$mode"
+    return
+  fi
+  stat -f '%Lp' "$path" 2>/dev/null
+}
+
+mkdir -p "$ALGOMIM_HOME"
+ALGOMIM_HOME=$(CDPATH= cd -- "$ALGOMIM_HOME" && pwd)
+INTEGRATION_HOME="$ALGOMIM_HOME/integrations/claude-code"
+CREDENTIAL_HELPER="$INTEGRATION_HOME/credential-store.sh"
+if [ ! -f "$CREDENTIAL_HELPER" ]; then
+  CREDENTIAL_HELPER="$ALGOMIM_HOME/cli/credential-store.sh"
+fi
+if [ ! -f "$CREDENTIAL_HELPER" ]; then
+  SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" 2>/dev/null && pwd || printf '')
+  CREDENTIAL_HELPER="$SCRIPT_DIR/../shared/credential-store.sh"
+fi
+[ -f "$CREDENTIAL_HELPER" ] || {
+  echo "Algomim credential helper is missing. Run the installer again." >&2
+  exit 1
+}
+. "$CREDENTIAL_HELPER"
+STATE_PATH="$INTEGRATION_HOME/state.json"
+STATE_VERSION=""
+STATE_CREDENTIAL_PROFILE=""
+STATE_BASE_URL=""
+if [ -f "$STATE_PATH" ]; then
+  STATE_SCHEMA=$(json_number_field schemaVersion "$STATE_PATH")
+  STATE_INTEGRATION=$(json_field integration "$STATE_PATH")
+  STATE_VERSION=$(json_field version "$STATE_PATH")
+  STATE_CREDENTIAL_PROFILE=$(json_field credentialProfile "$STATE_PATH")
+  STATE_BASE_URL=$(json_field baseUrl "$STATE_PATH")
+  if [ "$STATE_SCHEMA" = "1" ] && [ "$STATE_INTEGRATION" = "claude-code" ] &&
+    printf '%s' "$STATE_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+    ok "Installation state reports Claude Code integration version $STATE_VERSION."
+  else
+    fail "Claude Code installation state has an unsupported contract."
+  fi
+else
+  fail "Claude Code installation state is missing: $STATE_PATH"
+fi
+
+if [ -z "$CREDENTIAL_PROFILE" ]; then
+  CREDENTIAL_PROFILE="${STATE_CREDENTIAL_PROFILE:-default}"
+fi
+
+SETTINGS_PATH="$INTEGRATION_HOME/settings.json"
+CREDENTIALS_PATH="$ALGOMIM_HOME/credentials"
+
+RELEASE_CONTRACT="$INTEGRATION_HOME/release.json"
+if [ -f "$RELEASE_CONTRACT" ] &&
+  [ "$(json_field integration "$RELEASE_CONTRACT")" = "claude-code" ] &&
+  [ "$(json_field version "$RELEASE_CONTRACT")" = "$STATE_VERSION" ]; then
+  ok "Installed release contract matches the recorded version."
+else
+  fail "Installed release contract is missing or does not match the recorded version."
+fi
+
+for lifecycle_file in install.sh update.sh doctor.sh uninstall.sh; do
+  if [ ! -f "$INTEGRATION_HOME/$lifecycle_file" ]; then
+    fail "Installed lifecycle file is missing: $lifecycle_file"
+  fi
+done
+
+if algomim_credential_validate_profile "$CREDENTIAL_PROFILE" >/dev/null 2>&1; then
+  ok "Credential profile name is valid."
+else
+  fail "Credential profile name is invalid."
+fi
+
+if command -v claude >/dev/null 2>&1; then
+  ok "Claude Code CLI is available."
+else
+  fail "Claude Code CLI is not available on PATH."
+fi
+
+BASE_URL=""
+if [ -f "$SETTINGS_PATH" ]; then
+  ok "Settings exist: $SETTINGS_PATH"
+
+  if grep -q '"model"[[:space:]]*:[[:space:]]*"algomim"' "$SETTINGS_PATH"; then
+    ok "Settings select the algomim model."
+  else
+    fail "Settings do not select the algomim model."
+  fi
+
+  for required_env in ANTHROPIC_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL ANTHROPIC_CUSTOM_MODEL_OPTION; do
+    if grep -q "\"$required_env\"[[:space:]]*:[[:space:]]*\"algomim\"" "$SETTINGS_PATH"; then
+      ok "Settings set $required_env."
+    else
+      fail "Settings do not set $required_env to algomim."
+    fi
+  done
+
+  BASE_URL=$(json_field ANTHROPIC_BASE_URL "$SETTINGS_PATH")
+  if [ -n "$BASE_URL" ]; then
+    ok "Settings base URL is set to $BASE_URL"
+    if [ -n "$STATE_BASE_URL" ] && [ "$STATE_BASE_URL" != "$BASE_URL" ]; then
+      fail "Settings base URL does not match the recorded installation state."
+    fi
+  else
+    fail "Settings do not set ANTHROPIC_BASE_URL."
+  fi
+
+  if grep -q '"ANTHROPIC_AUTH_TOKEN"' "$SETTINGS_PATH"; then
+    fail "Settings must not embed ANTHROPIC_AUTH_TOKEN. Remove it and rely on algomim run claude."
+  fi
+else
+  fail "Settings are missing: $SETTINGS_PATH"
+fi
+
+TOKEN=""
+if [ -n "${ALGOMIM_API_KEY:-}" ]; then
+  if printf '%s' "$ALGOMIM_API_KEY" | LC_ALL=C grep '[[:cntrl:]]' >/dev/null 2>&1; then
+    fail "ALGOMIM_API_KEY contains control characters."
+  else
+    TOKEN="$ALGOMIM_API_KEY"
+    ok "Credential resolves from ALGOMIM_API_KEY."
+  fi
+elif [ -L "$CREDENTIALS_PATH" ]; then
+  fail "Credential file must not be a symbolic link: $CREDENTIALS_PATH"
+elif TOKEN=$(algomim_credential_get "$CREDENTIALS_PATH" "$CREDENTIAL_PROFILE" 2>/dev/null); then
+  ok "Credential profile '$CREDENTIAL_PROFILE' exists in shared Algomim credentials."
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*)
+      ok "Credential permissions are managed by Windows ACLs."
+      ;;
+    *)
+      MODE=$(credential_mode "$CREDENTIALS_PATH" || printf '')
+      case "$MODE" in
+        600|400)
+          ok "Credential file permissions are restricted ($MODE)."
+          ;;
+        *)
+          fail "Credential file permissions are too broad (mode ${MODE:-unknown}); expected 600."
+          ;;
+      esac
+      ;;
+  esac
+else
+  fail "No credential is available through ALGOMIM_API_KEY or $CREDENTIALS_PATH"
+fi
+
+CLAUDE_CONFIG_DIR_PATH="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+USER_SETTINGS_PATH="$CLAUDE_CONFIG_DIR_PATH/settings.json"
+if [ -f "$USER_SETTINGS_PATH" ]; then
+  for conflicting_env in ANTHROPIC_AUTH_TOKEN ANTHROPIC_API_KEY ANTHROPIC_BASE_URL; do
+    if grep -q "\"$conflicting_env\"" "$USER_SETTINGS_PATH"; then
+      warn "Your Claude Code settings ($USER_SETTINGS_PATH) set env.$conflicting_env. It can conflict with Algomim sessions."
+    fi
+  done
+fi
+
+if [ "$SKIP_API_CHECK" = "1" ]; then
+  ok "Skipped live Model API check."
+elif [ -n "$BASE_URL" ] && [ -n "$TOKEN" ]; then
+  if command -v curl >/dev/null 2>&1; then
+    umask 077
+    RESPONSE_FILE=$(mktemp)
+    CURL_CONFIG=$(mktemp)
+    trap 'rm -f "$RESPONSE_FILE" "$CURL_CONFIG"' HUP INT TERM EXIT
+    printf 'header = "Authorization: Bearer %s"\n' "$TOKEN" > "$CURL_CONFIG"
+    if HTTP_STATUS=$(curl -sS --config "$CURL_CONFIG" -o "$RESPONSE_FILE" -w '%{http_code}' "$BASE_URL/models"); then
+      if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+        if grep -q '"id"[[:space:]]*:[[:space:]]*"algomim"' "$RESPONSE_FILE"; then
+          ok "Model API responded and exposes algomim."
+        else
+          fail "Model API responded but does not expose algomim."
+        fi
+      elif [ "$HTTP_STATUS" = "401" ]; then
+        fail "Model API rejected the API key (HTTP 401)."
+      else
+        fail "Model API check failed (HTTP $HTTP_STATUS)."
+      fi
+    else
+      fail "Could not reach the Model API. Check network and the recorded base URL."
+    fi
+    rm -f "$RESPONSE_FILE" "$CURL_CONFIG"
+    trap - HUP INT TERM EXIT
+  else
+    fail "curl is required to verify the Model API."
+  fi
+fi
+
+if [ "$FAILED" -ne 0 ]; then
+  exit 1
+fi
+
+exit 0

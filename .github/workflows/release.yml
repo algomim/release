@@ -29,6 +29,12 @@ jobs:
       - name: Validate PowerShell update and rollback
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File tests/codex-update.ps1
+      - name: Validate PowerShell Claude Code lifecycle
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tests/claude-lifecycle.ps1
+      - name: Validate PowerShell Claude Code update and rollback
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tests/claude-update.ps1
 
   test-posix:
     strategy:
@@ -51,6 +57,10 @@ jobs:
         run: sh tests/cli.sh
       - name: Validate POSIX update and rollback
         run: sh tests/codex-update.sh
+      - name: Validate POSIX Claude Code lifecycle
+        run: sh tests/claude-lifecycle.sh
+      - name: Validate POSIX Claude Code update and rollback
+        run: sh tests/claude-update.sh
 
   publish:
     needs: [test-windows, test-posix]
@@ -67,6 +77,7 @@ jobs:
         run: |
           $contracts = @(
             Get-Content -Raw codex/release.json | ConvertFrom-Json
+            Get-Content -Raw claude-code/release.json | ConvertFrom-Json
             Get-Content -Raw cli/release.json | ConvertFrom-Json
           )
           foreach ($contract in $contracts) {
@@ -91,6 +102,8 @@ jobs:
             dist/SHA256SUMS `
             "dist/algomim-codex-windows-$tag.zip" `
             "dist/algomim-codex-posix-$tag.tar.gz" `
+            "dist/algomim-claude-code-windows-$tag.zip" `
+            "dist/algomim-claude-code-posix-$tag.tar.gz" `
             "dist/algomim-cli-windows-$tag.zip" `
             "dist/algomim-cli-posix-$tag.tar.gz" `
             --verify-tag `

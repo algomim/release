@@ -26,6 +26,12 @@ jobs:
           powershell -NoProfile -ExecutionPolicy Bypass
           -File tests/codex-published-lifecycle.ps1
           -Tag "${{ github.event.release.tag_name || inputs.tag }}"
+      - name: Verify published Windows Claude Code lifecycle
+        shell: powershell
+        run: >-
+          powershell -NoProfile -ExecutionPolicy Bypass
+          -File tests/claude-published-lifecycle.ps1
+          -Tag "${{ github.event.release.tag_name || inputs.tag }}"
 
   posix:
     strategy:
@@ -41,3 +47,7 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
         run: sh tests/codex-published-lifecycle.sh --tag "$RELEASE_TAG"
+      - name: Verify published POSIX Claude Code lifecycle
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: sh tests/claude-published-lifecycle.sh --tag "$RELEASE_TAG"

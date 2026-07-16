@@ -38,14 +38,9 @@ function Normalize-BaseUrl {
   return $trimmed
 }
 
-function Escape-TomlString {
+function Escape-JsonString {
   param([string] $Value)
   return $Value.Replace("\", "\\").Replace('"', '\"')
-}
-
-function Escape-PowerShellSingleQuotedString {
-  param([string] $Value)
-  return $Value.Replace("'", "''")
 }
 
 function Write-Utf8TextFileAtomically {
@@ -152,9 +147,9 @@ function Install-ReleaseFile {
     return
   }
 
-  $downloadPath = Join-Path ([System.IO.Path]::GetTempPath()) ("algomim-{0}-{1}" -f [Guid]::NewGuid().ToString("N"), $Name)
+  $downloadPath = Join-Path ([System.IO.Path]::GetTempPath()) ("algomim-{0}-{1}" -f [Guid]::NewGuid().ToString("N"), ($Name -replace '[\\/]', '-'))
   try {
-    $url = "https://raw.githubusercontent.com/algomim/release/$Ref/codex/$Name"
+    $url = "https://raw.githubusercontent.com/algomim/release/$Ref/claude-code/$Name"
     Invoke-WebRequest -Uri $url -OutFile $downloadPath -UseBasicParsing
     Copy-FileAtomically -Source $downloadPath -Destination $Destination
   }
@@ -249,57 +244,6 @@ function Invoke-AlgomimCliInstaller {
   }
 }
 
-function Install-ModelCatalog {
-  param(
-    [string] $CatalogDestination,
-    [string] $LockDestination,
-    [string] $Ref
-  )
-
-  $temporaryRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("algomim-catalog-{0}" -f [Guid]::NewGuid().ToString("N"))
-  New-Item -ItemType Directory -Path $temporaryRoot | Out-Null
-  try {
-    $catalogSource = Join-Path $temporaryRoot "algomim-models.json"
-    $lockSource = Join-Path $temporaryRoot "algomim-models.lock.json"
-    Install-ReleaseFile -Name "algomim-models.json" -Destination $catalogSource -Ref $Ref
-    Install-ReleaseFile -Name "algomim-models.lock.json" -Destination $lockSource -Ref $Ref
-
-    $lock = Get-Content -Raw -LiteralPath $lockSource | ConvertFrom-Json
-    $actualHash = (Get-FileHash -LiteralPath $catalogSource -Algorithm SHA256).Hash.ToLowerInvariant()
-    if (
-      $lock.schemaVersion -ne 1 -or
-      $lock.generator -ne "@algomim/inference/codex-model-catalog" -or
-      $lock.generatorVersion -ne 1 -or
-      $lock.catalogSha256 -cne $actualHash
-    ) {
-      throw "Model catalog SHA-256 verification failed."
-    }
-
-    Copy-FileAtomically -Source $lockSource -Destination $LockDestination
-    Copy-FileAtomically -Source $catalogSource -Destination $CatalogDestination
-  }
-  finally {
-    if (Test-Path -LiteralPath $temporaryRoot) {
-      Remove-Item -LiteralPath $temporaryRoot -Recurse -Force
-    }
-  }
-}
-
-function Get-LegacyApiKey {
-  param([string] $Path)
-
-  if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
-    return $null
-  }
-
-  $value = (Get-Content -Raw -LiteralPath $Path).Trim()
-  if ([string]::IsNullOrWhiteSpace($value)) {
-    return $null
-  }
-
-  return Normalize-AlgomimApiKey $value
-}
-
 $defaultBaseUrl = "https://api.algomim.com/v1"
 if ([string]::IsNullOrWhiteSpace($BaseUrl)) {
   $BaseUrl = $defaultBaseUrl
@@ -337,24 +281,16 @@ if ([string]::IsNullOrWhiteSpace($AlgomimHome)) {
 }
 $AlgomimHome = [System.IO.Path]::GetFullPath($AlgomimHome)
 
-$codexHome = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $HOME ".codex" }
-$codexHome = [System.IO.Path]::GetFullPath($codexHome)
-$profilePath = Join-Path $codexHome "algomim.config.toml"
-$catalogPath = Join-Path $codexHome "algomim-models.json"
-$catalogLockPath = Join-Path $codexHome "algomim-models.lock.json"
-$legacyKeyPath = Join-Path $codexHome "algomim.key"
-$authScriptPath = Join-Path $codexHome "algomim-auth.ps1"
 $credentialsPath = Join-Path $AlgomimHome "credentials"
-$integrationHome = Join-Path $AlgomimHome "integrations\codex"
+$integrationHome = Join-Path $AlgomimHome "integrations\claude-code"
+$settingsPath = Join-Path $integrationHome "settings.json"
 $statePath = Join-Path $integrationHome "state.json"
 
 Write-Step "Using API base URL $BaseUrl"
 Write-Step "Using credential profile '$CredentialProfile' in $credentialsPath"
-New-Item -ItemType Directory -Force -Path $codexHome | Out-Null
 
 $explicitApiKey = -not [string]::IsNullOrWhiteSpace($ApiKey)
 $storedApiKey = Get-AlgomimCredentialApiKey -Path $credentialsPath -Profile $CredentialProfile
-$legacyApiKey = Get-LegacyApiKey -Path $legacyKeyPath
 
 if (-not $SkipKey) {
   if ($explicitApiKey) {
@@ -367,13 +303,6 @@ if (-not $SkipKey) {
     Protect-AlgomimCredentialFile $credentialsPath
     Write-Step "Reusing credential profile '$CredentialProfile'."
   }
-  elseif ($null -ne $legacyApiKey) {
-    Set-AlgomimCredentialApiKey -Path $credentialsPath -Profile $CredentialProfile -Value $legacyApiKey
-    $storedApiKey = Get-AlgomimCredentialApiKey -Path $credentialsPath -Profile $CredentialProfile
-    Remove-Item -LiteralPath $legacyKeyPath -Force
-    $legacyApiKey = $null
-    Write-Step "Migrated the legacy Codex key to shared Algomim credentials."
-  }
   elseif (-not [string]::IsNullOrWhiteSpace($env:ALGOMIM_API_KEY)) {
     [void] (Normalize-AlgomimApiKey $env:ALGOMIM_API_KEY)
     Write-Step "Using ALGOMIM_API_KEY from the environment without persisting it."
@@ -384,16 +313,6 @@ if (-not $SkipKey) {
     $storedApiKey = Get-AlgomimCredentialApiKey -Path $credentialsPath -Profile $CredentialProfile
     Write-Step "Stored credential profile '$CredentialProfile' at $credentialsPath"
   }
-
-  if ($null -ne $legacyApiKey -and $null -ne $storedApiKey) {
-    if ($explicitApiKey -or $legacyApiKey -ceq $storedApiKey) {
-      Remove-Item -LiteralPath $legacyKeyPath -Force
-      Write-Step "Removed the obsolete legacy Codex key file."
-    }
-    else {
-      Write-Warning "A different legacy key remains at $legacyKeyPath. The shared credential profile takes precedence."
-    }
-  }
 }
 
 $hasEnvironmentCredential = -not [string]::IsNullOrWhiteSpace($env:ALGOMIM_API_KEY)
@@ -402,99 +321,24 @@ if (-not $hasEnvironmentCredential -and $null -eq $storedApiKey) {
   Write-Warning "No Algomim credential is available. Set ALGOMIM_API_KEY or run this installer again without -SkipKey."
 }
 
-Install-ModelCatalog -CatalogDestination $catalogPath -LockDestination $catalogLockPath -Ref $ReleaseRef
-Write-Step "Installed and verified model catalog at $catalogPath"
-
-$algomimHomePowerShell = Escape-PowerShellSingleQuotedString $AlgomimHome
-$credentialProfilePowerShell = Escape-PowerShellSingleQuotedString $CredentialProfile
-$authScript = @"
-`$ErrorActionPreference = "Stop"
-
-function Get-AlgomimCredential {
-  param([string] `$Path, [string] `$Profile)
-
-  if (-not (Test-Path -LiteralPath `$Path -PathType Leaf)) {
-    throw "Algomim credentials file not found: `$Path"
+$baseUrlJson = Escape-JsonString $BaseUrl
+$settings = @"
+{
+  "model": "algomim",
+  "env": {
+    "ANTHROPIC_BASE_URL": "$baseUrlJson",
+    "ANTHROPIC_MODEL": "algomim",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "algomim",
+    "ANTHROPIC_CUSTOM_MODEL_OPTION": "algomim",
+    "ANTHROPIC_CUSTOM_MODEL_OPTION_NAME": "Algomim"
   }
-
-  `$section = ""
-  `$value = `$null
-  foreach (`$line in [System.IO.File]::ReadAllLines(`$Path)) {
-    `$trimmed = `$line.Trim()
-    if (`$trimmed.Length -eq 0 -or `$trimmed.StartsWith("#") -or `$trimmed.StartsWith(";")) {
-      continue
-    }
-    if (`$trimmed -match '^\[([^\[\]]+)\]$') {
-      `$section = `$Matches[1].Trim()
-      continue
-    }
-    if (`$section -eq `$Profile -and `$trimmed -match '^api_key\s*=\s*(.*)$') {
-      if (`$null -ne `$value) {
-        throw "Credential profile '`$Profile' contains more than one api_key entry."
-      }
-      `$value = `$Matches[1].Trim()
-    }
-  }
-
-  if ([string]::IsNullOrWhiteSpace(`$value)) {
-    throw "Credential profile '`$Profile' was not found or has no api_key."
-  }
-  if (`$value -match '[\x00-\x1F\x7F]') {
-    throw "Credential profile '`$Profile' contains an invalid api_key."
-  }
-  return `$value
 }
-
-if (-not [string]::IsNullOrWhiteSpace(`$env:ALGOMIM_API_KEY)) {
-  `$token = `$env:ALGOMIM_API_KEY.Trim()
-  if (`$token -match '[\x00-\x1F\x7F]') {
-    throw "ALGOMIM_API_KEY contains control characters."
-  }
-  Write-Output `$token
-  exit 0
-}
-
-`$profile = if (`$env:ALGOMIM_PROFILE) { `$env:ALGOMIM_PROFILE.Trim() } else { '$credentialProfilePowerShell' }
-if (`$profile -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$') {
-  throw "ALGOMIM_PROFILE is invalid."
-}
-`$algomimHome = if (`$env:ALGOMIM_HOME) { `$env:ALGOMIM_HOME } else { '$algomimHomePowerShell' }
-`$credentialsPath = Join-Path ([System.IO.Path]::GetFullPath(`$algomimHome)) "credentials"
-Write-Output (Get-AlgomimCredential -Path `$credentialsPath -Profile `$profile)
 "@
-Write-Utf8TextFileAtomically -Path $authScriptPath -Content ($authScript + [Environment]::NewLine)
-Write-Step "Installed auth helper at $authScriptPath"
-
-$catalogToml = Escape-TomlString $catalogPath
-$baseUrlToml = Escape-TomlString $BaseUrl
-$authScriptToml = Escape-TomlString $authScriptPath
-$profile = @"
-model = "algomim"
-model_provider = "algomim"
-model_catalog_json = "$catalogToml"
-web_search = "disabled"
-service_tier = "default"
-model_reasoning_effort = "medium"
-
-[model_providers.algomim]
-name = "Algomim"
-base_url = "$baseUrlToml"
-wire_api = "responses"
-
-[model_providers.algomim.auth]
-command = "powershell"
-args = ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "$authScriptToml"]
-timeout_ms = 5000
-refresh_interval_ms = 300000
-
-[features]
-personality = false
-"@
-Write-Utf8TextFileAtomically -Path $profilePath -Content ($profile + [Environment]::NewLine)
-Write-Step "Installed Codex profile at $profilePath"
-
 New-Item -ItemType Directory -Force -Path $integrationHome | Out-Null
 Protect-AlgomimCredentialDirectory $integrationHome
+Write-Utf8TextFileAtomically -Path $settingsPath -Content ($settings + [Environment]::NewLine)
+Write-Step "Installed Claude Code settings at $settingsPath"
+
 foreach ($releaseFile in @("install.ps1", "update.ps1", "doctor.ps1", "uninstall.ps1", "release.json")) {
   Install-ReleaseFile -Name $releaseFile -Destination (Join-Path $integrationHome $releaseFile) -Ref $ReleaseRef
 }
@@ -505,53 +349,52 @@ $installedAt = $now
 if (Test-Path -LiteralPath $statePath -PathType Leaf) {
   try {
     $existingState = Get-Content -Raw -LiteralPath $statePath | ConvertFrom-Json
-    if ($existingState.integration -eq "codex" -and -not [string]::IsNullOrWhiteSpace($existingState.installedAt)) {
+    if ($existingState.integration -eq "claude-code" -and -not [string]::IsNullOrWhiteSpace($existingState.installedAt)) {
       $installedAt = [string] $existingState.installedAt
     }
   }
   catch {
-    throw "Existing Codex installation state is invalid: $statePath"
+    throw "Existing Claude Code installation state is invalid: $statePath"
   }
 }
 
 $state = [ordered] @{
   schemaVersion = 1
-  integration = "codex"
+  integration = "claude-code"
   version = $ReleaseVersion
   channel = "pilot"
   releaseRepository = "algomim/release"
   releaseTag = $ReleaseRef
   baseUrl = $BaseUrl
   credentialProfile = $CredentialProfile
-  codexHome = $codexHome
   installedAt = $installedAt
   updatedAt = $now
 }
 $stateJson = $state | ConvertTo-Json
 Write-Utf8TextFileAtomically -Path $statePath -Content ($stateJson + [Environment]::NewLine) -Private
-Write-Step "Recorded Codex integration version $ReleaseVersion at $statePath"
+Write-Step "Recorded Claude Code integration version $ReleaseVersion at $statePath"
 
 if (-not $SkipKey -and -not $SkipCliInstall) {
   Invoke-AlgomimCliInstaller -Ref $ReleaseRef -Version $ReleaseVersion -TargetHome $AlgomimHome -PathTarget $CliPathTarget
 }
 
-if (-not (Get-Command codex -ErrorAction SilentlyContinue)) {
-  Write-Warning "Codex CLI was not found on PATH. Install Codex before running codex --profile algomim."
+if (-not (Get-Command claude -ErrorAction SilentlyContinue)) {
+  Write-Warning "Claude Code CLI was not found on PATH. Install Claude Code before running algomim run claude."
 }
 else {
-  Write-Step "Codex CLI found."
+  Write-Step "Claude Code CLI found."
 }
 
 Write-Host ""
-Write-Host "Algomim Codex profile is ready."
+Write-Host "Algomim Claude Code integration is ready."
 Write-Host "Start it with:"
-Write-Host "  codex --profile algomim"
+Write-Host "  algomim run claude"
 Write-Host ""
-Write-Host "Normal 'codex' still uses your existing default provider."
+Write-Host "Normal 'claude' still uses your existing Anthropic account. Nothing was written to ~/.claude."
 
 if ($RunDoctor) {
   $doctor = if ($PSScriptRoot) { Join-Path $PSScriptRoot "doctor.ps1" } else { "" }
   if ($doctor -and (Test-Path -LiteralPath $doctor)) {
-    & $doctor -CodexHome $codexHome -AlgomimHome $AlgomimHome -CredentialProfile $CredentialProfile
+    & $doctor -AlgomimHome $AlgomimHome -CredentialProfile $CredentialProfile
   }
 }

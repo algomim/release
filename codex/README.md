@@ -127,7 +127,7 @@ rm install.sh
 Use the installed CLI:
 
 ```sh
-algomim codex update
+algomim update codex
 ```
 
 The updater downloads the latest GitHub Release manifest, verifies the
@@ -138,14 +138,14 @@ state. Shared credentials are never changed by update.
 Check without installing:
 
 ```sh
-algomim codex update --check
+algomim update codex --check
 ```
 
 Re-running the same versioned installer repairs the current version without
 selecting a newer release. The CLI can also repair the installed integration:
 
 ```sh
-algomim codex install
+algomim install codex
 ```
 
 There is no silent or background update process.
@@ -157,7 +157,7 @@ created and selected without replacing it:
 
 ```sh
 algomim login --profile work
-algomim codex install --profile work
+algomim install codex --profile work
 ```
 
 Running `algomim login` again rotates the selected profile's key without
@@ -206,7 +206,7 @@ Use `/model` inside Codex to confirm `algomim` is selected.
 ## Doctor
 
 ```sh
-algomim codex doctor
+algomim doctor codex
 ```
 
 Doctor checks:
@@ -228,13 +228,13 @@ To validate only local files, credentials, and configuration without a network
 request:
 
 ```sh
-algomim codex doctor --offline
+algomim doctor codex --offline
 ```
 
 ## Uninstall
 
 ```sh
-algomim codex uninstall
+algomim uninstall codex
 ```
 
 Uninstall removes the Algomim Codex profile, catalog, and auth helper. It does
@@ -271,7 +271,7 @@ tool handling, and provider routing live behind the Algomim API.
 | Symptom                                | Meaning                                                                  | Fix                                                           |
 | -------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------- |
 | `/model` does not show Algomim         | Profile or catalog was not loaded                                        | Restart Codex with `codex --profile algomim`                  |
-| `Model metadata for algomim not found` | Catalog path is wrong or missing                                         | Run `algomim codex install`, then restart Codex               |
+| `Model metadata for algomim not found` | Catalog path is wrong or missing                                         | Run `algomim install codex`, then restart Codex               |
 | `Configured service tier priority...`  | A previous OpenAI tier leaked into the profile                           | Ensure `service_tier = "default"` is in `algomim.config.toml` |
 | `tools must contain only...`           | Catalog/profile is stale or the backend is older than the Codex contract | Update Algomim setup and retry                                |
 | `401`                                  | API key is missing, invalid, or revoked                                  | Run `algomim login` and retry                                 |

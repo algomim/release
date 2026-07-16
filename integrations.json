@@ -11,9 +11,9 @@
     {
       "id": "claude-code",
       "displayName": "Claude Code",
-      "status": "future",
+      "status": "pilot",
       "directory": "claude-code",
-      "installable": false
+      "installable": true
     },
     {
       "id": "vscode",

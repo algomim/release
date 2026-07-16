@@ -1,7 +1,8 @@
 {
   "schemaVersion": 1,
-  "product": "algomim-cli",
+  "integration": "claude-code",
   "version": "0.3.0",
   "releaseTag": "v0.3.0",
+  "channel": "pilot",
   "repository": "algomim/release"
 }

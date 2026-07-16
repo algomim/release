@@ -12,7 +12,7 @@ scripts, uninstall scripts, and troubleshooting docs.
 | Integration        | Status | Path                             |
 | ------------------ | ------ | -------------------------------- |
 | Codex CLI          | Pilot  | [`codex/`](./codex/)             |
-| Claude Code        | Future | [`claude-code/`](./claude-code/) |
+| Claude Code        | Pilot  | [`claude-code/`](./claude-code/) |
 | Visual Studio Code | Future | [`vscode/`](./vscode/)           |
 | Cursor             | Future | [`cursor/`](./cursor/)           |
 | Windsurf           | Future | [`windsurf/`](./windsurf/)       |
@@ -34,13 +34,13 @@ release repository. See
 Windows PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/algomim/release/v0.2.0/codex/install.ps1 | iex
+irm https://raw.githubusercontent.com/algomim/release/v0.3.0/codex/install.ps1 | iex
 ```
 
 macOS/Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.2.0/codex/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.3.0/codex/install.sh | sh
 ```
 
 The installer asks for the Algomim API key without echoing it, installs the
@@ -49,10 +49,34 @@ macOS/Linux, open a new shell after installation. Then start Codex with the
 Algomim profile:
 
 ```sh
-codex --profile algomim
+algomim run codex
 ```
 
 Plain `codex` keeps using the user's existing OpenAI configuration.
+(`codex --profile algomim` remains equivalent for direct use.)
+
+## Claude Code quick install
+
+Windows PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/algomim/release/v0.3.0/claude-code/install.ps1 | iex
+```
+
+macOS/Linux:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.3.0/claude-code/install.sh | sh
+```
+
+Nothing is written to `~/.claude`; plain `claude` keeps using the user's own
+Anthropic account. Start Claude Code against Algomim with:
+
+```sh
+algomim run claude
+```
+
+## The algomim CLI
 
 The installed CLI owns explicit lifecycle operations:
 
@@ -61,17 +85,17 @@ algomim login
 algomim logout
 algomim version
 algomim help
-algomim codex install
-algomim codex update
-algomim codex update --check
-algomim codex doctor
-algomim codex doctor --offline
-algomim codex uninstall
+algomim install <codex|claude>
+algomim run <codex|claude> [-- <client arguments>]
+algomim update [codex|claude] [--check]
+algomim doctor [codex|claude] [--offline]
+algomim uninstall <codex|claude>
 ```
 
-There is no background updater. `algomim codex uninstall` removes only the
-Codex integration and preserves the shared API key; `algomim logout` removes
-the selected credential profile.
+Bare `algomim doctor` and `algomim update` operate on every installed
+integration. There is no background updater. `algomim uninstall <integration>`
+removes only that integration and preserves the shared API key;
+`algomim logout` removes the selected credential profile.
 
 Release packaging, checksums, installed state, update, and rollback are
 documented in
@@ -93,6 +117,6 @@ hand-authored model metadata.
 - Keep API keys in the shared Algomim credential store, never in a
   client-owned directory.
 - Prefer versioned release URLs for customer-facing instructions once a release
-  is cut, for example `/v0.2.0/codex/install.ps1`.
+  is cut, for example `/v0.3.0/codex/install.ps1`.
 - Never move an existing release tag or replace published release assets; ship
   a new semantic version instead.

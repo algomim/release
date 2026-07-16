@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-RELEASE_VERSION="0.2.0"
+RELEASE_VERSION="0.3.0"
 RELEASE_REF=""
 ALGOMIM_HOME="${ALGOMIM_HOME:-$HOME/.algomim}"
 PATH_TARGET="profile"
@@ -40,10 +40,11 @@ else
 fi
 BIN_DIRECTORY="$ALGOMIM_HOME/bin"
 CLI_DIRECTORY="$ALGOMIM_HOME/cli"
-SUPPORT_DIRECTORY="$CLI_DIRECTORY/integrations/codex"
+CODEX_SUPPORT_DIRECTORY="$CLI_DIRECTORY/integrations/codex"
+CLAUDE_CODE_SUPPORT_DIRECTORY="$CLI_DIRECTORY/integrations/claude-code"
 STATE_PATH="$CLI_DIRECTORY/state.json"
-mkdir -p "$BIN_DIRECTORY" "$SUPPORT_DIRECTORY"
-chmod 700 "$ALGOMIM_HOME" "$BIN_DIRECTORY" "$CLI_DIRECTORY" "$CLI_DIRECTORY/integrations" "$SUPPORT_DIRECTORY"
+mkdir -p "$BIN_DIRECTORY" "$CODEX_SUPPORT_DIRECTORY" "$CLAUDE_CODE_SUPPORT_DIRECTORY"
+chmod 700 "$ALGOMIM_HOME" "$BIN_DIRECTORY" "$CLI_DIRECTORY" "$CLI_DIRECTORY/integrations" "$CODEX_SUPPORT_DIRECTORY" "$CLAUDE_CODE_SUPPORT_DIRECTORY"
 
 atomic_copy() {
   source="$1"
@@ -84,9 +85,15 @@ install_repository_file cli/release.json "$CLI_DIRECTORY/release.json" 600
 for name in algomim-models.json algomim-models.lock.json install.sh update.sh doctor.sh uninstall.sh release.json; do
   mode=600
   case "$name" in *.sh) mode=700 ;; esac
-  install_repository_file "codex/$name" "$SUPPORT_DIRECTORY/$name" "$mode"
+  install_repository_file "codex/$name" "$CODEX_SUPPORT_DIRECTORY/$name" "$mode"
 done
-install_repository_file shared/credential-store.sh "$SUPPORT_DIRECTORY/credential-store.sh" 600
+install_repository_file shared/credential-store.sh "$CODEX_SUPPORT_DIRECTORY/credential-store.sh" 600
+for name in install.sh update.sh doctor.sh uninstall.sh release.json; do
+  mode=600
+  case "$name" in *.sh) mode=700 ;; esac
+  install_repository_file "claude-code/$name" "$CLAUDE_CODE_SUPPORT_DIRECTORY/$name" "$mode"
+done
+install_repository_file shared/credential-store.sh "$CLAUDE_CODE_SUPPORT_DIRECTORY/credential-store.sh" 600
 
 NOW=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
 INSTALLED_AT="$NOW"

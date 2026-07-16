@@ -63,8 +63,8 @@ try {
   Assert-True (Test-Path -LiteralPath $cmdShim -PathType Leaf) "installer writes the CMD shim"
   Assert-True (Test-Path -LiteralPath $cliStatePath -PathType Leaf) "installer writes CLI state"
   $cliState = Get-Content -Raw -LiteralPath $cliStatePath | ConvertFrom-Json
-  Assert-Equal "0.2.0" ([string] $cliState.version) "CLI state records the release version"
-  Assert-Equal "v0.2.0" ([string] $cliState.releaseTag) "CLI state records the immutable tag"
+  Assert-Equal "0.3.0" ([string] $cliState.version) "CLI state records the release version"
+  Assert-Equal "v0.3.0" ([string] $cliState.releaseTag) "CLI state records the immutable tag"
   Assert-True (-not (Get-Content -Raw -LiteralPath $cliStatePath).Contains($defaultKey)) "CLI state contains no credential"
 
   $binPath = (Join-Path $algomimHome "bin").TrimEnd('\')
@@ -78,9 +78,10 @@ try {
   Assert-Equal $installedAt ([string] $reinstalledState.installedAt) "reinstall preserves the initial install time"
 
   $versionOutput = (& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $cli version 2>&1 | Out-String)
-  Assert-True ($versionOutput.Contains("Algomim CLI 0.2.0 (v0.2.0)")) "version reports CLI version"
+  Assert-True ($versionOutput.Contains("Algomim CLI 0.3.0 (v0.3.0)")) "version reports CLI version"
   $helpOutput = (& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $cli help 2>&1 | Out-String)
-  Assert-True ($helpOutput.Contains("algomim codex doctor [--offline]")) "help lists lifecycle commands"
+  Assert-True ($helpOutput.Contains("algomim doctor [codex|claude] [--offline]")) "help lists lifecycle commands"
+  Assert-True ($helpOutput.Contains("algomim run <codex|claude>")) "help lists the run command"
 
   $loginOutput = Invoke-CliLogin -CliPath $cli -Profile work -Key $workKey
   Assert-Equal $workKey (Read-ProfileKey $credentialsPath "work") "login creates a named profile"
@@ -92,7 +93,10 @@ try {
   Assert-True ($null -eq (Read-ProfileKey $credentialsPath "work")) "logout removes only the selected profile"
   Assert-Equal $defaultKey (Read-ProfileKey $credentialsPath "default") "logout preserves unrelated profiles"
 
-  & $cli codex doctor --offline *> $null
+  & $cli doctor codex --offline *> $null
+  $legacyDoctorOutput = (& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $cli codex doctor --offline 2>&1 | Out-String)
+  Assert-Equal "0" ([string] $LASTEXITCODE) "legacy noun-first grammar still works"
+  Assert-True (-not ($legacyDoctorOutput -imatch "deprecat")) "legacy grammar prints no deprecation notice"
   $integrationHome = Join-Path $algomimHome "integrations\codex"
   $updatePath = Join-Path $integrationHome "update.ps1"
   $updateBackup = Get-Content -Raw -LiteralPath $updatePath
@@ -103,20 +107,23 @@ try {
 param([string] $AlgomimHome = "", [switch] $CheckOnly)
 [System.IO.File]::WriteAllText($env:ALGOMIM_CLI_TEST_MARKER, "$AlgomimHome|$CheckOnly")
 '@
-    & $cli codex update --check
+    & $cli update codex --check
     Assert-Equal "$algomimHome|True" (Get-Content -Raw -LiteralPath $markerPath) "update --check delegates to the lifecycle updater"
+    Remove-Item -LiteralPath $markerPath -Force
+    & $cli update --check
+    Assert-Equal "$algomimHome|True" (Get-Content -Raw -LiteralPath $markerPath) "bare update targets every installed integration"
   }
   finally {
     Set-Content -LiteralPath $updatePath -Encoding utf8 -Value $updateBackup
     Remove-Item Env:ALGOMIM_CLI_TEST_MARKER -ErrorAction SilentlyContinue
   }
 
-  & $cli codex uninstall *> $null
-  Assert-True (-not (Test-Path -LiteralPath $integrationHome)) "codex uninstall removes only the integration"
-  Assert-True (Test-Path -LiteralPath $cli -PathType Leaf) "codex uninstall preserves the CLI"
-  Assert-Equal $defaultKey (Read-ProfileKey $credentialsPath "default") "codex uninstall preserves credentials"
-  & $cli codex install --profile default *> $null
-  Assert-True (Test-Path -LiteralPath (Join-Path $integrationHome "state.json") -PathType Leaf) "codex install repairs a removed integration"
+  & $cli uninstall codex *> $null
+  Assert-True (-not (Test-Path -LiteralPath $integrationHome)) "uninstall codex removes only the integration"
+  Assert-True (Test-Path -LiteralPath $cli -PathType Leaf) "uninstall codex preserves the CLI"
+  Assert-Equal $defaultKey (Read-ProfileKey $credentialsPath "default") "uninstall codex preserves credentials"
+  & $cli install codex --profile default *> $null
+  Assert-True (Test-Path -LiteralPath (Join-Path $integrationHome "state.json") -PathType Leaf) "install codex repairs a removed integration"
 
   $publicFiles = @(Get-ChildItem -LiteralPath $algomimHome -Recurse -File | Where-Object { $_.FullName -cne $credentialsPath })
   $publicText = ($publicFiles | ForEach-Object { Get-Content -Raw -LiteralPath $_.FullName }) -join "`n"
