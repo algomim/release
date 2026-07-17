@@ -19,6 +19,7 @@ function Write-JsonFile {
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $baselineVersion = "0.3.1"
 $baselineTag = "v$baselineVersion"
+$baselineRevision = "c3b3a6b9ae694eb5d346df0092a285964c0444b3"
 $candidateVersion = "0.3.2"
 $candidateTag = "v$candidateVersion"
 $invalidVersion = if ($candidateVersion -ceq "9999.9999.9999") { "9999.9999.9998" } else { "9999.9999.9999" }
@@ -40,9 +41,9 @@ try {
   $env:ALGOMIM_HOME = $algomimHome
   Remove-Item Env:ALGOMIM_API_KEY -ErrorAction SilentlyContinue
 
-  & git -C $repoRoot archive --format=zip "--output=$baselineArchive" $baselineTag claude-code shared
+  & git -C $repoRoot archive --format=zip "--output=$baselineArchive" $baselineRevision claude-code shared
   if ($LASTEXITCODE -ne 0) {
-    throw "Could not archive immutable Claude Code baseline $baselineTag."
+    throw "Could not archive immutable Claude Code baseline $baselineRevision."
   }
   Expand-Archive -LiteralPath $baselineArchive -DestinationPath $baselineSource
   $baselineContract = Get-Content -Raw -LiteralPath (Join-Path $baselineSource "claude-code\release.json") | ConvertFrom-Json

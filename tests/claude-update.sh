@@ -81,6 +81,7 @@ SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
 BASELINE_VERSION="0.3.1"
 BASELINE_TAG="v$BASELINE_VERSION"
+BASELINE_REVISION="c3b3a6b9ae694eb5d346df0092a285964c0444b3"
 CANDIDATE_VERSION="0.3.2"
 CANDIDATE_TAG="v$CANDIDATE_VERSION"
 if [ "$CANDIDATE_VERSION" = "9999.9999.9999" ]; then
@@ -101,7 +102,7 @@ export ALGOMIM_HOME
 unset ALGOMIM_API_KEY ALGOMIM_PROFILE 2>/dev/null || true
 
 BASELINE_ARCHIVE="$TEST_ROOT/claude-v0.3.1.tar"
-git -C "$REPO_ROOT" archive --format=tar --output="$BASELINE_ARCHIVE" "$BASELINE_TAG" claude-code shared
+git -C "$REPO_ROOT" archive --format=tar --output="$BASELINE_ARCHIVE" "$BASELINE_REVISION" claude-code shared
 mkdir -p "$STAGE/baseline"
 tar -xf "$BASELINE_ARCHIVE" -C "$STAGE/baseline"
 assert_equal "$BASELINE_VERSION" "$(json_field version "$STAGE/baseline/claude-code/release.json")" "baseline contract must record v0.3.1"
