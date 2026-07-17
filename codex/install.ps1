@@ -2,7 +2,7 @@ param(
   [string] $BaseUrl = "",
   [string] $ApiKey = "",
   [string] $ReleaseRef = "",
-  [string] $ReleaseVersion = "0.3.0",
+  [string] $ReleaseVersion = "0.3.1",
   [string] $CredentialProfile = "",
   [string] $AlgomimHome = "",
   [switch] $SkipKey,

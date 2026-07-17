@@ -84,13 +84,13 @@ See the cross-client credential contract in
 Windows PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/algomim/release/v0.2.0/codex/install.ps1 | iex
+irm https://raw.githubusercontent.com/algomim/release/v0.3.1/codex/install.ps1 | iex
 ```
 
 macOS/Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.2.0/codex/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.3.1/codex/install.sh | sh
 ```
 
 The installer uses `https://api.algomim.com/v1`. On the first install it asks
@@ -99,7 +99,7 @@ existing `default` credential automatically. It also installs the `algomim`
 CLI and adds `~/.algomim/bin` to PATH idempotently. On macOS/Linux, open a new
 shell after installation so the managed PATH block is loaded.
 
-Existing `v0.1.2` users run the `v0.2.0` one-liner once. Their credential is
+Existing `v0.1.2` users run the `v0.3.1` one-liner once. Their credential is
 preserved while the CLI and current Codex integration are installed.
 
 Existing pilot installations are migrated automatically from
@@ -111,13 +111,13 @@ For a pilot endpoint:
 download the installer and pass the provided URL explicitly:
 
 ```powershell
-irm https://raw.githubusercontent.com/algomim/release/v0.2.0/codex/install.ps1 -OutFile install.ps1
+irm https://raw.githubusercontent.com/algomim/release/v0.3.1/codex/install.ps1 -OutFile install.ps1
 .\install.ps1 -BaseUrl "https://example.ngrok-free.dev/v1"
 Remove-Item .\install.ps1
 ```
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.2.0/codex/install.sh -o install.sh
+curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.3.1/codex/install.sh -o install.sh
 sh install.sh --base-url "https://example.ngrok-free.dev/v1"
 rm install.sh
 ```
@@ -182,7 +182,7 @@ automation.
 Windows:
 
 ```powershell
-irm https://raw.githubusercontent.com/algomim/release/v0.2.0/codex/install.ps1 -OutFile install.ps1
+irm https://raw.githubusercontent.com/algomim/release/v0.3.1/codex/install.ps1 -OutFile install.ps1
 .\install.ps1 -ApiKey "sk-..."
 Remove-Item .\install.ps1
 ```
@@ -190,7 +190,7 @@ Remove-Item .\install.ps1
 macOS/Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.2.0/codex/install.sh -o install.sh
+curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.3.1/codex/install.sh -o install.sh
 sh install.sh --api-key "sk-..."
 rm install.sh
 ```

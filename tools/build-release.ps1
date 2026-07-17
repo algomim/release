@@ -141,7 +141,7 @@ try {
     releaseTag = "v$Version"
     channel = [string] $contract.channel
     minimumCodexVersion = "0.144.1"
-    minimumClaudeCodeVersion = "2.0.0"
+    minimumClaudeCodeVersion = "2.1.200"
     artifacts = [ordered] @{
       windows = [ordered] @{
         file = $windowsName

@@ -6,24 +6,26 @@ their public contract remains compatible.
 
 ## Version contract
 
-The Algomim CLI and Codex integration use semantic versions such as `0.2.0`
-and immutable-by-policy Git tags such as `v0.2.0`. Their source contracts are
-`cli/release.json` and `codex/release.json`. A release tag must match both
-files exactly.
+The Algomim CLI, Codex integration, and Claude Code integration use semantic
+versions such as `0.3.1` and immutable-by-policy Git tags such as `v0.3.1`.
+Their source contracts are `cli/release.json`, `codex/release.json`, and
+`claude-code/release.json`. A release tag must match all three files exactly.
 
 Customer installation instructions use a tag-pinned raw URL. They never run a
 mutable `main` installer:
 
 ```text
-https://raw.githubusercontent.com/algomim/release/v0.2.0/codex/install.ps1
-https://raw.githubusercontent.com/algomim/release/v0.2.0/codex/install.sh
+https://raw.githubusercontent.com/algomim/release/v0.3.1/codex/install.ps1
+https://raw.githubusercontent.com/algomim/release/v0.3.1/claude-code/install.sh
 ```
 
 Pushing a matching tag starts the release workflow. Windows, Ubuntu, and macOS
 lifecycle tests must pass before the workflow publishes:
 
-- the updater from the previous immutable release must install the candidate
-  release without changing the shared credential;
+- a first integration release must install the candidate directly and exercise
+  its same-version update, checksum rejection, and rollback paths;
+- once an integration has a previous immutable release, that release's updater
+  must install the candidate without changing the shared credential;
 - the versioned installer must install the shell CLI and add its bin directory
   to PATH without duplicate entries;
 - the CLI must dispatch Codex lifecycle commands without duplicating their
@@ -35,10 +37,12 @@ lifecycle tests must pass before the workflow publishes:
 ```text
 manifest.json
 SHA256SUMS
-algomim-codex-windows-v0.2.0.zip
-algomim-codex-posix-v0.2.0.tar.gz
-algomim-cli-windows-v0.2.0.zip
-algomim-cli-posix-v0.2.0.tar.gz
+algomim-codex-windows-v0.3.1.zip
+algomim-codex-posix-v0.3.1.tar.gz
+algomim-claude-code-windows-v0.3.1.zip
+algomim-claude-code-posix-v0.3.1.tar.gz
+algomim-cli-windows-v0.3.1.zip
+algomim-cli-posix-v0.3.1.tar.gz
 ```
 
 Published tags and release assets must not be moved, replaced, or deleted. A
@@ -68,6 +72,7 @@ The installer records non-secret state at:
 ```text
 ~/.algomim/cli/state.json
 ~/.algomim/integrations/codex/state.json
+~/.algomim/integrations/claude-code/state.json
 ```
 
 The CLI state contains its installed version, release tag, and repository. The

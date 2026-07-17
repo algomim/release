@@ -2,7 +2,7 @@ param(
   [string] $BaseUrl = "",
   [string] $ApiKey = "",
   [string] $ReleaseRef = "",
-  [string] $ReleaseVersion = "0.3.0",
+  [string] $ReleaseVersion = "0.3.1",
   [string] $CredentialProfile = "",
   [string] $AlgomimHome = "",
   [switch] $SkipKey,
@@ -31,8 +31,8 @@ function Normalize-BaseUrl {
     throw "Base URL must start with http:// or https://."
   }
 
-  if ($trimmed -notmatch "/v1$") {
-    return "$trimmed/v1"
+  if ($trimmed -match "/v1$") {
+    throw "Base URL must be the service root and must not end in /v1."
   }
 
   return $trimmed
@@ -244,7 +244,7 @@ function Invoke-AlgomimCliInstaller {
   }
 }
 
-$defaultBaseUrl = "https://api.algomim.com/v1"
+$defaultBaseUrl = "https://api.algomim.com"
 if ([string]::IsNullOrWhiteSpace($BaseUrl)) {
   $BaseUrl = $defaultBaseUrl
 }
@@ -330,7 +330,10 @@ $settings = @"
     "ANTHROPIC_MODEL": "algomim",
     "ANTHROPIC_DEFAULT_HAIKU_MODEL": "algomim",
     "ANTHROPIC_CUSTOM_MODEL_OPTION": "algomim",
-    "ANTHROPIC_CUSTOM_MODEL_OPTION_NAME": "Algomim"
+    "ANTHROPIC_CUSTOM_MODEL_OPTION_NAME": "Algomim",
+    "ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION": "Algomim Model API",
+    "CLAUDE_CODE_SUBAGENT_MODEL": "algomim",
+    "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1"
   }
 }
 "@

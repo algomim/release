@@ -124,7 +124,20 @@ else
 fi
 
 if command -v claude >/dev/null 2>&1; then
-  ok "Claude Code CLI is available."
+  CLAUDE_VERSION_OUTPUT=$(claude --version 2>/dev/null || printf '')
+  CLAUDE_VERSION=$(printf '%s\n' "$CLAUDE_VERSION_OUTPUT" | sed -n 's/.*\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' | head -n 1)
+  if [ -n "$CLAUDE_VERSION" ] && awk -v current="$CLAUDE_VERSION" -v minimum="2.1.200" 'BEGIN {
+      split(current, c, "."); split(minimum, m, ".")
+      for (i = 1; i <= 3; i++) {
+        if ((c[i] + 0) > (m[i] + 0)) exit 0
+        if ((c[i] + 0) < (m[i] + 0)) exit 1
+      }
+      exit 0
+    }'; then
+    ok "Claude Code CLI $CLAUDE_VERSION is supported."
+  else
+    fail "Claude Code CLI 2.1.200 or newer is required."
+  fi
 else
   fail "Claude Code CLI is not available on PATH."
 fi
@@ -139,17 +152,36 @@ if [ -f "$SETTINGS_PATH" ]; then
     fail "Settings do not select the algomim model."
   fi
 
-  for required_env in ANTHROPIC_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL ANTHROPIC_CUSTOM_MODEL_OPTION; do
+  for required_env in \
+    ANTHROPIC_MODEL \
+    ANTHROPIC_DEFAULT_HAIKU_MODEL \
+    ANTHROPIC_CUSTOM_MODEL_OPTION \
+    CLAUDE_CODE_SUBAGENT_MODEL; do
     if grep -q "\"$required_env\"[[:space:]]*:[[:space:]]*\"algomim\"" "$SETTINGS_PATH"; then
       ok "Settings set $required_env."
     else
       fail "Settings do not set $required_env to algomim."
     fi
   done
+  for expected_setting in \
+    'ANTHROPIC_CUSTOM_MODEL_OPTION_NAME|Algomim' \
+    'ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION|Algomim Model API' \
+    'CLAUDE_CODE_SUBPROCESS_ENV_SCRUB|1'; do
+    setting_name=${expected_setting%%|*}
+    setting_value=${expected_setting#*|}
+    if grep -q "\"$setting_name\"[[:space:]]*:[[:space:]]*\"$setting_value\"" "$SETTINGS_PATH"; then
+      ok "Settings set $setting_name."
+    else
+      fail "Settings do not set $setting_name to $setting_value."
+    fi
+  done
 
   BASE_URL=$(json_field ANTHROPIC_BASE_URL "$SETTINGS_PATH")
   if [ -n "$BASE_URL" ]; then
     ok "Settings base URL is set to $BASE_URL"
+    case "${BASE_URL%/}" in
+      */v1) fail "Settings base URL must be the service root and must not end in /v1." ;;
+    esac
     if [ -n "$STATE_BASE_URL" ] && [ "$STATE_BASE_URL" != "$BASE_URL" ]; then
       fail "Settings base URL does not match the recorded installation state."
     fi
@@ -215,7 +247,7 @@ elif [ -n "$BASE_URL" ] && [ -n "$TOKEN" ]; then
     CURL_CONFIG=$(mktemp)
     trap 'rm -f "$RESPONSE_FILE" "$CURL_CONFIG"' HUP INT TERM EXIT
     printf 'header = "Authorization: Bearer %s"\n' "$TOKEN" > "$CURL_CONFIG"
-    if HTTP_STATUS=$(curl -sS --config "$CURL_CONFIG" -o "$RESPONSE_FILE" -w '%{http_code}' "$BASE_URL/models"); then
+    if HTTP_STATUS=$(curl -sS --config "$CURL_CONFIG" -o "$RESPONSE_FILE" -w '%{http_code}' "$BASE_URL/v1/models"); then
       if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
         if grep -q '"id"[[:space:]]*:[[:space:]]*"algomim"' "$RESPONSE_FILE"; then
           ok "Model API responded and exposes algomim."

@@ -31,7 +31,7 @@ $savedProfile = $env:ALGOMIM_PROFILE
 
 try {
   New-Item -ItemType Directory -Path $testRoot, $fakeBin -Force | Out-Null
-  Set-Content -LiteralPath (Join-Path $fakeBin "claude.cmd") -Value "@echo off`r`nexit /b 0" -Encoding ascii
+  Set-Content -LiteralPath (Join-Path $fakeBin "claude.cmd") -Value "@echo off`r`necho 2.1.211`r`nexit /b 0" -Encoding ascii
   $env:PATH = "$fakeBin;$savedPath"
   $env:ALGOMIM_HOME = $algomimHome
   Remove-Item Env:ALGOMIM_API_KEY -ErrorAction SilentlyContinue
@@ -51,6 +51,21 @@ try {
   $settingsPath = Join-Path $integrationHome "settings.json"
   Assert-True (Test-Path -LiteralPath $settingsPath -PathType Leaf) "install writes the session settings"
   Assert-True (-not $installOutput.Contains($key)) "install output does not expose the credential"
+  $settings = Get-Content -Raw -LiteralPath $settingsPath | ConvertFrom-Json
+  Assert-Equal "algomim" ([string] $settings.model) "published install selects the algomim model"
+  Assert-Equal "https://api.algomim.com" ([string] $settings.env.ANTHROPIC_BASE_URL) "published install records the service-root base URL"
+  Assert-Equal "algomim" ([string] $settings.env.ANTHROPIC_MODEL) "published install selects algomim for the main session"
+  Assert-Equal "algomim" ([string] $settings.env.ANTHROPIC_CUSTOM_MODEL_OPTION) "published install adds the Algomim custom model option"
+  Assert-Equal "Algomim" ([string] $settings.env.ANTHROPIC_CUSTOM_MODEL_OPTION_NAME) "published install labels the custom model option"
+  Assert-Equal "Algomim Model API" ([string] $settings.env.ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION) "published install describes the custom model option"
+  Assert-Equal "algomim" ([string] $settings.env.ANTHROPIC_DEFAULT_HAIKU_MODEL) "published install redirects background haiku traffic"
+  Assert-Equal "algomim" ([string] $settings.env.CLAUDE_CODE_SUBAGENT_MODEL) "published install redirects subagents"
+  Assert-Equal "1" ([string] $settings.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB) "published install scrubs the credential from child processes"
+  Assert-True ($null -eq $settings.PSObject.Properties["availableModels"]) "published install does not add an availableModels allowlist"
+  Assert-True ($null -eq $settings.PSObject.Properties["enforceAvailableModels"]) "published install does not enforce an availableModels allowlist"
+  foreach ($familyPin in @("ANTHROPIC_DEFAULT_OPUS_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL", "ANTHROPIC_DEFAULT_FABLE_MODEL")) {
+    Assert-True ([string]::IsNullOrWhiteSpace([string] $settings.env.$familyPin)) "published install does not pin $familyPin"
+  }
   $cliPath = Join-Path $algomimHome "bin\algomim.ps1"
   Assert-True (Test-Path -LiteralPath $cliPath -PathType Leaf) "install writes the Algomim CLI"
 

@@ -34,13 +34,13 @@ release repository. See
 Windows PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/algomim/release/v0.3.0/codex/install.ps1 | iex
+irm https://raw.githubusercontent.com/algomim/release/v0.3.1/codex/install.ps1 | iex
 ```
 
 macOS/Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.3.0/codex/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.3.1/codex/install.sh | sh
 ```
 
 The installer asks for the Algomim API key without echoing it, installs the
@@ -60,17 +60,17 @@ Plain `codex` keeps using the user's existing OpenAI configuration.
 Windows PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/algomim/release/v0.3.0/claude-code/install.ps1 | iex
+irm https://raw.githubusercontent.com/algomim/release/v0.3.1/claude-code/install.ps1 | iex
 ```
 
 macOS/Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.3.0/claude-code/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.3.1/claude-code/install.sh | sh
 ```
 
-Nothing is written to `~/.claude`; plain `claude` keeps using the user's own
-Anthropic account. Start Claude Code against Algomim with:
+The installer does not edit `~/.claude`; plain `claude` keeps using the user's
+own Anthropic account. Start Claude Code against Algomim with:
 
 ```sh
 algomim run claude
@@ -117,6 +117,6 @@ hand-authored model metadata.
 - Keep API keys in the shared Algomim credential store, never in a
   client-owned directory.
 - Prefer versioned release URLs for customer-facing instructions once a release
-  is cut, for example `/v0.3.0/codex/install.ps1`.
+  is cut, for example `/v0.3.1/codex/install.ps1`.
 - Never move an existing release tag or replace published release assets; ship
   a new semantic version instead.

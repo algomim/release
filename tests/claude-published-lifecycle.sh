@@ -28,6 +28,13 @@ fail() {
 }
 
 assert_file() { [ -f "$1" ] || fail "$2"; }
+assert_equal() { [ "$1" = "$2" ] || fail "$3"; }
+
+json_field() {
+  field="$1"
+  path="$2"
+  sed -n "s/^[[:space:]]*\"$field\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" "$path" | head -n 1
+}
 
 sha256_file() {
   if command -v sha256sum >/dev/null 2>&1; then
@@ -76,6 +83,7 @@ trap cleanup EXIT HUP INT TERM
 
 cat > "$FAKE_BIN/claude" <<'EOF'
 #!/usr/bin/env sh
+printf '2.1.211\n'
 exit 0
 EOF
 chmod 700 "$FAKE_BIN/claude"
@@ -97,6 +105,20 @@ CLI="$ALGOMIM_HOME/bin/algomim"
 assert_file "$SETTINGS_PATH" "install must write the session settings"
 assert_file "$CLI" "install must write the Algomim CLI"
 case "$INSTALL_OUTPUT" in *"$KEY"*) fail "install output must not expose the credential" ;; esac
+grep -q '"model"[[:space:]]*:[[:space:]]*"algomim"' "$SETTINGS_PATH" || fail "published install must select the algomim model"
+assert_equal "https://api.algomim.com" "$(json_field ANTHROPIC_BASE_URL "$SETTINGS_PATH")" "published install must record the service-root base URL"
+assert_equal "algomim" "$(json_field ANTHROPIC_MODEL "$SETTINGS_PATH")" "published install must select algomim for the main session"
+assert_equal "algomim" "$(json_field ANTHROPIC_CUSTOM_MODEL_OPTION "$SETTINGS_PATH")" "published install must add the Algomim custom model option"
+assert_equal "Algomim" "$(json_field ANTHROPIC_CUSTOM_MODEL_OPTION_NAME "$SETTINGS_PATH")" "published install must label the custom model option"
+assert_equal "Algomim Model API" "$(json_field ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION "$SETTINGS_PATH")" "published install must describe the custom model option"
+assert_equal "algomim" "$(json_field ANTHROPIC_DEFAULT_HAIKU_MODEL "$SETTINGS_PATH")" "published install must redirect background haiku traffic"
+assert_equal "algomim" "$(json_field CLAUDE_CODE_SUBAGENT_MODEL "$SETTINGS_PATH")" "published install must redirect subagents"
+assert_equal "1" "$(json_field CLAUDE_CODE_SUBPROCESS_ENV_SCRUB "$SETTINGS_PATH")" "published install must scrub the credential from child processes"
+! grep -q '"availableModels"' "$SETTINGS_PATH" || fail "published install must not add an availableModels allowlist"
+! grep -q '"enforceAvailableModels"' "$SETTINGS_PATH" || fail "published install must not enforce an availableModels allowlist"
+for family_pin in ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_FABLE_MODEL; do
+  ! grep -q "\"$family_pin\"" "$SETTINGS_PATH" || fail "published install must not pin $family_pin"
+done
 
 MANIFEST="$TEST_ROOT/manifest.json"
 curl -fsSL "https://github.com/algomim/release/releases/download/$TAG/manifest.json" -o "$MANIFEST"

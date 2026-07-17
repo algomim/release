@@ -3,9 +3,11 @@
 Status: **Pilot**
 
 This integration lets Claude Code run against the Algomim Model API. It is
-fully non-invasive: nothing is ever written to `~/.claude`, your claude.ai
-login stays untouched, and normal `claude` keeps using your existing Anthropic
-account. Algomim sessions are started explicitly with `algomim run claude`.
+non-invasive at install time: the installer never edits `~/.claude`, your
+claude.ai login stays untouched, and normal `claude` keeps using your existing
+Anthropic account. Algomim sessions are started explicitly with
+`algomim run claude`. Claude Code itself still uses its normal config and
+session-history directory while it runs.
 
 ## What the installer writes
 
@@ -63,8 +65,10 @@ Normal `claude` (without the Algomim CLI) keeps using your own Anthropic
 account. Both can be used side by side in different terminals.
 
 Inside an Algomim session, `/model` lists `Algomim` as a custom model option.
-Do not switch to an Anthropic model from inside an Algomim session; exit and
-start plain `claude` instead.
+Claude Code's built-in Anthropic entries remain visible; do not switch to one
+from an Algomim session. Exit and start plain `claude` instead.
+Claude Code may also render the background Haiku mapping as a separate
+`algomim` row; the `Algomim` custom-model row is the canonical user choice.
 
 ## Doctor
 
@@ -98,14 +102,18 @@ algomim uninstall claude
 ```
 
 Removes `~/.algomim/integrations/claude-code/` only. The shared credential
-profile is preserved by default (`--remove-credential` deletes it). There is
-nothing to clean up in `~/.claude` because nothing was ever written there.
+profile is preserved by default. Use `algomim logout` when you explicitly want
+to remove that shared credential. The installer does not add files to
+`~/.claude`.
 
 ## Minimum versions
 
-- Claude Code 2.x with `--settings` support. Verify with `claude --version`.
-- The Algomim Model API endpoint recorded at install time must expose
-  `POST /v1/messages` (Anthropic-compatible) and `GET /v1/models`.
+- Claude Code 2.1.200 or newer. Verify with `claude --version`.
+- The recorded base URL is the service root, such as
+  `https://api.algomim.com`, without a trailing `/v1`.
+- The Algomim Model API must expose `POST /v1/messages`
+  (Anthropic-compatible). `GET /v1/models` is used by `doctor` as a health
+  check, not for Claude Code model discovery.
 
 ## How the session is configured
 
@@ -113,10 +121,15 @@ nothing to clean up in `~/.claude` because nothing was ever written there.
 stored API key exported as `ANTHROPIC_AUTH_TOKEN` for that process only. The
 settings file routes the session to Algomim:
 
-- `ANTHROPIC_BASE_URL` — the Algomim Model API endpoint
-- `ANTHROPIC_MODEL` / `ANTHROPIC_DEFAULT_HAIKU_MODEL` — `algomim` for both the
-  main session and Claude Code's background tasks
-- `ANTHROPIC_CUSTOM_MODEL_OPTION` — makes `algomim` selectable in `/model`
+- `ANTHROPIC_BASE_URL` — the Algomim Model API service root
+- `model` / `ANTHROPIC_MODEL` — `algomim` for the main session
+- `ANTHROPIC_CUSTOM_MODEL_OPTION` — adds `algomim` to `/model`, with the
+  `_NAME` and `_DESCRIPTION` companions setting its Algomim label and summary
+- `ANTHROPIC_DEFAULT_HAIKU_MODEL` — routes background Haiku-class work to
+  `algomim` without remapping the user-selectable Opus, Sonnet, or Fable rows
+- `CLAUDE_CODE_SUBAGENT_MODEL` — `algomim` for subagents
+- `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` — keeps the bearer token out of tool,
+  hook, and stdio MCP child processes
 
 Token counting endpoints are not provided; Claude Code falls back to its local
 context estimate, which is expected and harmless.
@@ -149,6 +162,7 @@ context estimate, which is expected and harmless.
 - `env` in a settings file applies to the session and its subprocesses.
 - `ANTHROPIC_AUTH_TOKEN` sends `Authorization: Bearer` and takes precedence
   over a saved login while set.
-- `ANTHROPIC_DEFAULT_HAIKU_MODEL` redirects background functionality.
-- `ANTHROPIC_CUSTOM_MODEL_OPTION` adds a custom `/model` entry without
-  validation against Anthropic model IDs.
+- `ANTHROPIC_CUSTOM_MODEL_OPTION` adds a custom `/model` entry; its `_NAME` and
+  `_DESCRIPTION` companions control the picker label and description.
+- `ANTHROPIC_DEFAULT_HAIKU_MODEL` redirects background Haiku-class work.
+- `CLAUDE_CODE_SUBAGENT_MODEL` redirects subagent and agent-team requests.

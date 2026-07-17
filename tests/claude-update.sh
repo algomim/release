@@ -36,7 +36,7 @@ write_manifest() {
   "version": "$version",
   "releaseTag": "v$version",
   "channel": "pilot",
-  "minimumClaudeCodeVersion": "2.0.0",
+  "minimumClaudeCodeVersion": "2.1.200",
   "claudeCodeArtifacts": {
     "windows": {
       "file": "unused.zip",
@@ -99,6 +99,23 @@ INTEGRATION_HOME="$ALGOMIM_HOME/integrations/claude-code"
 STATE_PATH="$INTEGRATION_HOME/state.json"
 SETTINGS_PATH="$INTEGRATION_HOME/settings.json"
 CREDENTIALS_PATH="$ALGOMIM_HOME/credentials"
+
+assert_equal "$CURRENT_VERSION" "$(json_field version "$STATE_PATH")" "first install must record the current integration version"
+assert_equal "https://api.algomim.com" "$(json_field baseUrl "$STATE_PATH")" "first install must record the service-root base URL"
+grep -q '"model"[[:space:]]*:[[:space:]]*"algomim"' "$SETTINGS_PATH" || fail "first install must select the algomim model"
+assert_equal "https://api.algomim.com" "$(json_field ANTHROPIC_BASE_URL "$SETTINGS_PATH")" "first install must record the service-root base URL in settings"
+assert_equal "algomim" "$(json_field ANTHROPIC_MODEL "$SETTINGS_PATH")" "first install must select algomim for the main session"
+assert_equal "algomim" "$(json_field ANTHROPIC_CUSTOM_MODEL_OPTION "$SETTINGS_PATH")" "first install must add the Algomim custom model option"
+assert_equal "Algomim" "$(json_field ANTHROPIC_CUSTOM_MODEL_OPTION_NAME "$SETTINGS_PATH")" "first install must label the custom model option"
+assert_equal "Algomim Model API" "$(json_field ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION "$SETTINGS_PATH")" "first install must describe the custom model option"
+assert_equal "algomim" "$(json_field ANTHROPIC_DEFAULT_HAIKU_MODEL "$SETTINGS_PATH")" "first install must redirect background haiku traffic"
+assert_equal "algomim" "$(json_field CLAUDE_CODE_SUBAGENT_MODEL "$SETTINGS_PATH")" "first install must redirect subagents"
+assert_equal "1" "$(json_field CLAUDE_CODE_SUBPROCESS_ENV_SCRUB "$SETTINGS_PATH")" "first install must scrub the credential from child processes"
+! grep -q '"availableModels"' "$SETTINGS_PATH" || fail "first install must not add an availableModels allowlist"
+! grep -q '"enforceAvailableModels"' "$SETTINGS_PATH" || fail "first install must not enforce an availableModels allowlist"
+for family_pin in ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_FABLE_MODEL; do
+  ! grep -q "\"$family_pin\"" "$SETTINGS_PATH" || fail "first install must not pin $family_pin"
+done
 
 UP_TO_DATE_OUTPUT=$(sh "$INTEGRATION_HOME/update.sh" \
   --manifest-url "$ARTIFACTS/manifest.json" \

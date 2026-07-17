@@ -49,6 +49,25 @@ try {
   $settingsPath = Join-Path $integrationHome "settings.json"
   $credentialsPath = Join-Path $algomimHome "credentials"
 
+  $installedState = Get-Content -Raw -LiteralPath $statePath | ConvertFrom-Json
+  $installedSettings = Get-Content -Raw -LiteralPath $settingsPath | ConvertFrom-Json
+  Assert-Equal $currentVersion ([string] $installedState.version) "first install records the current integration version"
+  Assert-Equal "https://api.algomim.com" ([string] $installedState.baseUrl) "first install records the service-root base URL"
+  Assert-Equal "algomim" ([string] $installedSettings.model) "first install selects the algomim model"
+  Assert-Equal "https://api.algomim.com" ([string] $installedSettings.env.ANTHROPIC_BASE_URL) "first install records the service-root base URL in settings"
+  Assert-Equal "algomim" ([string] $installedSettings.env.ANTHROPIC_MODEL) "first install selects algomim for the main session"
+  Assert-Equal "algomim" ([string] $installedSettings.env.ANTHROPIC_CUSTOM_MODEL_OPTION) "first install adds the Algomim custom model option"
+  Assert-Equal "Algomim" ([string] $installedSettings.env.ANTHROPIC_CUSTOM_MODEL_OPTION_NAME) "first install labels the custom model option"
+  Assert-Equal "Algomim Model API" ([string] $installedSettings.env.ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION) "first install describes the custom model option"
+  Assert-Equal "algomim" ([string] $installedSettings.env.ANTHROPIC_DEFAULT_HAIKU_MODEL) "first install redirects background haiku traffic"
+  Assert-Equal "algomim" ([string] $installedSettings.env.CLAUDE_CODE_SUBAGENT_MODEL) "first install redirects subagents"
+  Assert-Equal "1" ([string] $installedSettings.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB) "first install scrubs the credential from child processes"
+  Assert-True ($null -eq $installedSettings.PSObject.Properties["availableModels"]) "first install does not add an availableModels allowlist"
+  Assert-True ($null -eq $installedSettings.PSObject.Properties["enforceAvailableModels"]) "first install does not enforce an availableModels allowlist"
+  foreach ($familyPin in @("ANTHROPIC_DEFAULT_OPUS_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL", "ANTHROPIC_DEFAULT_FABLE_MODEL")) {
+    Assert-True ([string]::IsNullOrWhiteSpace([string] $installedSettings.env.$familyPin)) "first install does not pin $familyPin"
+  }
+
   $upToDateOutput = (& (Join-Path $integrationHome "update.ps1") `
       -ManifestUrl (Join-Path $artifacts "manifest.json") `
       -ArtifactBaseUrl $artifacts *>&1 | Out-String)

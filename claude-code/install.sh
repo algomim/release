@@ -5,7 +5,7 @@ BASE_URL=""
 API_KEY=""
 API_KEY_WAS_EXPLICIT="0"
 RELEASE_REF=""
-RELEASE_VERSION="0.3.0"
+RELEASE_VERSION="0.3.1"
 CREDENTIAL_PROFILE="${ALGOMIM_PROFILE:-default}"
 SKIP_KEY="0"
 SKIP_CLI_INSTALL="0"
@@ -68,9 +68,12 @@ normalize_base_url() {
   esac
 
   case "$value" in
-    */v1) printf '%s\n' "$value" ;;
-    *) printf '%s/v1\n' "$value" ;;
+    */v1)
+      printf 'Base URL must be the service root and must not end in /v1.\n' >&2
+      return 1
+      ;;
   esac
+  printf '%s\n' "$value"
 }
 
 json_escape() {
@@ -160,7 +163,7 @@ install_algomim_cli() (
   fi
 )
 
-DEFAULT_BASE_URL="https://api.algomim.com/v1"
+DEFAULT_BASE_URL="https://api.algomim.com"
 if [ -z "$BASE_URL" ]; then
   BASE_URL="$DEFAULT_BASE_URL"
 fi
@@ -271,7 +274,10 @@ cat > "$GENERATED_SETTINGS" <<EOF
     "ANTHROPIC_MODEL": "algomim",
     "ANTHROPIC_DEFAULT_HAIKU_MODEL": "algomim",
     "ANTHROPIC_CUSTOM_MODEL_OPTION": "algomim",
-    "ANTHROPIC_CUSTOM_MODEL_OPTION_NAME": "Algomim"
+    "ANTHROPIC_CUSTOM_MODEL_OPTION_NAME": "Algomim",
+    "ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION": "Algomim Model API",
+    "CLAUDE_CODE_SUBAGENT_MODEL": "algomim",
+    "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1"
   }
 }
 EOF

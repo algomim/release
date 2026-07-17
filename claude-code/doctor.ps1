@@ -138,7 +138,13 @@ if ($null -ne $state) {
 }
 
 if (Get-Command claude -ErrorAction SilentlyContinue) {
-  Check-Ok "Claude Code CLI is available."
+  $claudeVersionOutput = (& claude --version 2>$null | Out-String).Trim()
+  if ($claudeVersionOutput -match '(\d+\.\d+\.\d+)' -and ([version] $Matches[1]) -ge ([version] "2.1.200")) {
+    Check-Ok "Claude Code CLI $($Matches[1]) is supported."
+  }
+  else {
+    Check-Fail "Claude Code CLI 2.1.200 or newer is required."
+  }
 }
 else {
   Check-Fail "Claude Code CLI is not available on PATH."
@@ -161,7 +167,11 @@ if (Test-Path -LiteralPath $settingsPath) {
       foreach ($required in @(
           @{ Name = "ANTHROPIC_MODEL"; Expected = "algomim" },
           @{ Name = "ANTHROPIC_DEFAULT_HAIKU_MODEL"; Expected = "algomim" },
-          @{ Name = "ANTHROPIC_CUSTOM_MODEL_OPTION"; Expected = "algomim" }
+          @{ Name = "ANTHROPIC_CUSTOM_MODEL_OPTION"; Expected = "algomim" },
+          @{ Name = "ANTHROPIC_CUSTOM_MODEL_OPTION_NAME"; Expected = "Algomim" },
+          @{ Name = "ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION"; Expected = "Algomim Model API" },
+          @{ Name = "CLAUDE_CODE_SUBAGENT_MODEL"; Expected = "algomim" },
+          @{ Name = "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"; Expected = "1" }
         )) {
         $value = [string] $settings.env.($required.Name)
         if ($value -eq $required.Expected) {
@@ -175,6 +185,9 @@ if (Test-Path -LiteralPath $settingsPath) {
       $baseUrl = [string] $settings.env.ANTHROPIC_BASE_URL
       if (-not [string]::IsNullOrWhiteSpace($baseUrl)) {
         Check-Ok "Settings base URL is set to $baseUrl"
+        if ($baseUrl.TrimEnd('/') -match '/v1$') {
+          Check-Fail "Settings base URL must be the service root and must not end in /v1."
+        }
         if ($null -ne $state -and -not [string]::IsNullOrWhiteSpace($state.baseUrl) -and ([string] $state.baseUrl) -ne $baseUrl) {
           Check-Fail "Settings base URL does not match the recorded installation state."
         }
@@ -260,7 +273,7 @@ if ($SkipApiCheck) {
 elseif ($null -ne $baseUrl -and $null -ne $token) {
   try {
     $headers = @{ Authorization = "Bearer $token" }
-    $modelsUrl = "$($baseUrl.TrimEnd('/'))/models"
+    $modelsUrl = "$($baseUrl.TrimEnd('/'))/v1/models"
     $response = Invoke-RestMethod -Method Get -Uri $modelsUrl -Headers $headers -TimeoutSec 20
     $modelIds = @($response.data | ForEach-Object { $_.id })
     if ($modelIds -contains "algomim") {
