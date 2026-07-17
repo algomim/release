@@ -201,6 +201,7 @@ if [ -f "$SETTINGS_PATH" ]; then
     'ANTHROPIC_CUSTOM_MODEL_OPTION_NAME|Algomim' \
     'ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION|Algomim Model API' \
     'CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY|0' \
+    'CLAUDE_CODE_DISABLE_1M_CONTEXT|1' \
     'CLAUDE_CODE_SUBPROCESS_ENV_SCRUB|1'; do
     setting_name=${expected_setting%%|*}
     setting_value=${expected_setting#*|}
@@ -211,19 +212,23 @@ if [ -f "$SETTINGS_PATH" ]; then
     fi
   done
 
-  FAMILY_OVERRIDE_FOUND=0
-  for family_override in \
-    ANTHROPIC_DEFAULT_HAIKU_MODEL \
-    ANTHROPIC_DEFAULT_SONNET_MODEL \
-    ANTHROPIC_DEFAULT_OPUS_MODEL \
-    ANTHROPIC_DEFAULT_FABLE_MODEL; do
-    if grep -q "\"$family_override\"[[:space:]]*:" "$SETTINGS_PATH"; then
-      fail "Settings must not set $family_override; use the Algomim custom model option instead."
-      FAMILY_OVERRIDE_FOUND=1
-    fi
+  DEFAULT_MAPPINGS_VALID=1
+  for family in FABLE OPUS SONNET HAIKU; do
+    for mapping in \
+      "MODEL|algomim" \
+      "MODEL_NAME|Algomim" \
+      "MODEL_DESCRIPTION|Algomim Model API"; do
+      mapping_suffix=${mapping%%|*}
+      mapping_value=${mapping#*|}
+      mapping_name="ANTHROPIC_DEFAULT_${family}_${mapping_suffix}"
+      if [ "$(json_field "$mapping_name" "$SETTINGS_PATH")" != "$mapping_value" ]; then
+        fail "Settings do not set $mapping_name to $mapping_value."
+        DEFAULT_MAPPINGS_VALID=0
+      fi
+    done
   done
-  if [ "$FAMILY_OVERRIDE_FOUND" = "0" ]; then
-    ok "Settings do not override Claude model families."
+  if [ "$DEFAULT_MAPPINGS_VALID" = "1" ]; then
+    ok "Settings map every Claude default family to Algomim."
   fi
 
   BASE_URL=$(json_field ANTHROPIC_BASE_URL "$SETTINGS_PATH")
@@ -298,9 +303,13 @@ fi
 
 NORMAL_CLAUDE_CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 NORMAL_CLAUDE_SETTINGS="$NORMAL_CLAUDE_CONFIG_DIR/settings.json"
-if [ -f "$NORMAL_CLAUDE_SETTINGS" ] &&
-  grep -q '"model"[[:space:]]*:[[:space:]]*"algomim"' "$NORMAL_CLAUDE_SETTINGS"; then
-  warn "Normal Claude settings still select algomim from an earlier session: $NORMAL_CLAUDE_SETTINGS. Remove the top-level model field to restore Claude's own default."
+if [ -f "$NORMAL_CLAUDE_SETTINGS" ]; then
+  NORMAL_CLAUDE_MODEL=$(json_field model "$NORMAL_CLAUDE_SETTINGS")
+  case "$NORMAL_CLAUDE_MODEL" in
+    algomim|claude-algomim)
+      warn "Normal Claude settings still select $NORMAL_CLAUDE_MODEL from an earlier session: $NORMAL_CLAUDE_SETTINGS. Remove the top-level model field to restore Claude's own default."
+      ;;
+  esac
 fi
 
 if [ "$SKIP_API_CHECK" = "1" ]; then

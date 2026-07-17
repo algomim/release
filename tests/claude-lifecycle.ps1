@@ -78,16 +78,19 @@ exit /b 0
   Assert-Equal "Algomim" ([string] $settings.env.ANTHROPIC_CUSTOM_MODEL_OPTION_NAME) "settings label the custom model option"
   Assert-Equal "Algomim Model API" ([string] $settings.env.ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION) "settings describe the custom model option"
   Assert-Equal "0" ([string] $settings.env.CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY) "settings disable gateway model discovery"
+  Assert-Equal "1" ([string] $settings.env.CLAUDE_CODE_DISABLE_1M_CONTEXT) "settings disable unsupported 1M aliases"
   Assert-Equal "algomim" ([string] $settings.env.CLAUDE_CODE_SUBAGENT_MODEL) "settings redirect subagents"
   Assert-Equal "1" ([string] $settings.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB) "settings scrub the credential from child processes"
-  foreach ($familyPin in @("ANTHROPIC_DEFAULT_HAIKU_MODEL", "ANTHROPIC_DEFAULT_OPUS_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL", "ANTHROPIC_DEFAULT_FABLE_MODEL")) {
-    Assert-True ($null -eq $settings.env.PSObject.Properties[$familyPin]) "settings do not define $familyPin"
+  foreach ($family in @("FABLE", "OPUS", "SONNET", "HAIKU")) {
+    Assert-Equal "algomim" ([string] $settings.env.("ANTHROPIC_DEFAULT_${family}_MODEL")) "settings map the $family default to Algomim"
+    Assert-Equal "Algomim" ([string] $settings.env.("ANTHROPIC_DEFAULT_${family}_MODEL_NAME")) "settings label the $family default as Algomim"
+    Assert-Equal "Algomim Model API" ([string] $settings.env.("ANTHROPIC_DEFAULT_${family}_MODEL_DESCRIPTION")) "settings describe the $family default"
   }
   Assert-True (-not (Get-Content -Raw -LiteralPath $settingsPath).Contains($key)) "settings never contain the API key"
 
   $state = Get-Content -Raw -LiteralPath $statePath | ConvertFrom-Json
   Assert-Equal "claude-code" ([string] $state.integration) "state records the integration id"
-  Assert-Equal "0.3.5" ([string] $state.version) "state records the release version"
+  Assert-Equal "0.3.6" ([string] $state.version) "state records the release version"
   Assert-Equal "https://pilot.example.com" ([string] $state.baseUrl) "state records the service-root base URL"
 
   Assert-Equal $normalClaudeSettingsBefore ([Convert]::ToBase64String([System.IO.File]::ReadAllBytes($normalClaudeSettingsPath))) "install does not modify normal Claude Code settings"

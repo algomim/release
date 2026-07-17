@@ -71,14 +71,17 @@ assert_equal "algomim" "$(json_field ANTHROPIC_CUSTOM_MODEL_OPTION "$SETTINGS_PA
 assert_equal "Algomim" "$(json_field ANTHROPIC_CUSTOM_MODEL_OPTION_NAME "$SETTINGS_PATH")" "settings must label the custom model option"
 assert_equal "Algomim Model API" "$(json_field ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION "$SETTINGS_PATH")" "settings must describe the custom model option"
 assert_equal "0" "$(json_field CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY "$SETTINGS_PATH")" "settings must disable gateway model discovery"
+assert_equal "1" "$(json_field CLAUDE_CODE_DISABLE_1M_CONTEXT "$SETTINGS_PATH")" "settings must disable unsupported 1M aliases"
 assert_equal "algomim" "$(json_field CLAUDE_CODE_SUBAGENT_MODEL "$SETTINGS_PATH")" "settings must redirect subagents"
 assert_equal "1" "$(json_field CLAUDE_CODE_SUBPROCESS_ENV_SCRUB "$SETTINGS_PATH")" "settings must scrub the credential from child processes"
-for family_pin in ANTHROPIC_DEFAULT_HAIKU_MODEL ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_FABLE_MODEL; do
-  ! grep -q "\"$family_pin\"" "$SETTINGS_PATH" || fail "settings must not define $family_pin"
+for family in FABLE OPUS SONNET HAIKU; do
+  assert_equal "algomim" "$(json_field "ANTHROPIC_DEFAULT_${family}_MODEL" "$SETTINGS_PATH")" "settings must map the $family default to Algomim"
+  assert_equal "Algomim" "$(json_field "ANTHROPIC_DEFAULT_${family}_MODEL_NAME" "$SETTINGS_PATH")" "settings must label the $family default as Algomim"
+  assert_equal "Algomim Model API" "$(json_field "ANTHROPIC_DEFAULT_${family}_MODEL_DESCRIPTION" "$SETTINGS_PATH")" "settings must describe the $family default"
 done
 grep -F "$KEY" "$SETTINGS_PATH" >/dev/null 2>&1 && fail "settings must not contain the API key"
 assert_equal "claude-code" "$(json_field integration "$STATE_PATH")" "state must record the integration id"
-assert_equal "0.3.5" "$(json_field version "$STATE_PATH")" "state must record the release version"
+assert_equal "0.3.6" "$(json_field version "$STATE_PATH")" "state must record the release version"
 assert_equal "https://pilot.example.com" "$(json_field baseUrl "$STATE_PATH")" "state must record the service-root base URL"
 
 cmp -s "$TEST_ROOT/normal-claude-settings.before" "$NORMAL_CLAUDE_SETTINGS" || fail "install must not modify normal Claude Code settings"

@@ -80,10 +80,13 @@ exit /b 0
   Assert-Equal "Algomim" ([string] $settings.env.ANTHROPIC_CUSTOM_MODEL_OPTION_NAME) "published install labels the custom model option"
   Assert-Equal "Algomim Model API" ([string] $settings.env.ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION) "published install describes the custom model option"
   Assert-Equal "0" ([string] $settings.env.CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY) "published install disables gateway model discovery"
+  Assert-Equal "1" ([string] $settings.env.CLAUDE_CODE_DISABLE_1M_CONTEXT) "published install disables unsupported 1M aliases"
   Assert-Equal "algomim" ([string] $settings.env.CLAUDE_CODE_SUBAGENT_MODEL) "published install redirects subagents"
   Assert-Equal "1" ([string] $settings.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB) "published install scrubs the credential from child processes"
-  foreach ($familyPin in @("ANTHROPIC_DEFAULT_HAIKU_MODEL", "ANTHROPIC_DEFAULT_OPUS_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL", "ANTHROPIC_DEFAULT_FABLE_MODEL")) {
-    Assert-True ($null -eq $settings.env.PSObject.Properties[$familyPin]) "published install does not define $familyPin"
+  foreach ($family in @("FABLE", "OPUS", "SONNET", "HAIKU")) {
+    Assert-Equal "algomim" ([string] $settings.env.("ANTHROPIC_DEFAULT_${family}_MODEL")) "published install maps the $family default to Algomim"
+    Assert-Equal "Algomim" ([string] $settings.env.("ANTHROPIC_DEFAULT_${family}_MODEL_NAME")) "published install labels the $family default as Algomim"
+    Assert-Equal "Algomim Model API" ([string] $settings.env.("ANTHROPIC_DEFAULT_${family}_MODEL_DESCRIPTION")) "published install describes the $family default"
   }
   $cliPath = Join-Path $algomimHome "bin\algomim.ps1"
   Assert-True (Test-Path -LiteralPath $cliPath -PathType Leaf) "install writes the Algomim CLI"

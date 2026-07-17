@@ -17,17 +17,17 @@ function Write-JsonFile {
 }
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$baselineVersion = "0.3.4"
+$baselineVersion = "0.3.5"
 $baselineTag = "v$baselineVersion"
-$baselineRevision = "1150c101eda16bacca985e3a772561f6c1167aaf"
-$candidateVersion = "0.3.5"
+$baselineRevision = "7de89a58ae019834ecc5a334ba690ae94d7c89a5"
+$candidateVersion = "0.3.6"
 $candidateTag = "v$candidateVersion"
 $invalidVersion = if ($candidateVersion -ceq "9999.9999.9999") { "9999.9999.9998" } else { "9999.9999.9999" }
 $invalidTag = "v$invalidVersion"
 
 $testRoot = Join-Path $repoRoot (".claude-update-test-{0}" -f [Guid]::NewGuid().ToString("N"))
 $artifacts = Join-Path $testRoot "artifacts"
-$baselineArchive = Join-Path $testRoot "claude-v0.3.4.zip"
+$baselineArchive = Join-Path $testRoot "claude-v0.3.5.zip"
 $baselineSource = Join-Path $testRoot "baseline"
 $candidateStage = Join-Path $testRoot "candidate"
 $algomimHome = Join-Path $testRoot "algomim"
@@ -50,14 +50,24 @@ exit /b 0
   $env:PATH = "$fakeBin;$savedPath"
   Remove-Item Env:ALGOMIM_API_KEY -ErrorAction SilentlyContinue
 
-  & git -C $repoRoot archive --format=zip "--output=$baselineArchive" $baselineRevision claude-code shared
+  & git -C $repoRoot archive --format=zip "--output=$baselineArchive" $baselineRevision claude-code cli codex shared
   if ($LASTEXITCODE -ne 0) {
     throw "Could not archive immutable Claude Code baseline $baselineRevision."
   }
   Expand-Archive -LiteralPath $baselineArchive -DestinationPath $baselineSource
   $baselineContract = Get-Content -Raw -LiteralPath (Join-Path $baselineSource "claude-code\release.json") | ConvertFrom-Json
-  Assert-Equal $baselineVersion ([string] $baselineContract.version) "baseline contract records v0.3.4"
+  Assert-Equal $baselineVersion ([string] $baselineContract.version) "baseline contract records v0.3.5"
   Assert-Equal $baselineTag ([string] $baselineContract.releaseTag) "baseline contract matches the immutable tag"
+
+  & (Join-Path $baselineSource "cli\install.ps1") `
+    -AlgomimHome $algomimHome `
+    -ReleaseRef $baselineTag `
+    -ReleaseVersion $baselineVersion `
+    -PathTarget Process *> $null
+
+  $baselineCliState = Get-Content -Raw -LiteralPath (Join-Path $algomimHome "cli\state.json") | ConvertFrom-Json
+  Assert-Equal $baselineVersion ([string] $baselineCliState.version) "test installs the immutable v0.3.5 CLI"
+  Assert-True ((Get-Content -Raw -LiteralPath (Join-Path $algomimHome "bin\algomim.ps1")).Contains("CLAUDE_CONFIG_DIR")) "baseline CLI launcher contains Claude config isolation"
 
   & (Join-Path $baselineSource "claude-code\install.ps1") `
     -ApiKey $key `
@@ -77,7 +87,7 @@ exit /b 0
 
   $baselineState = Get-Content -Raw -LiteralPath $statePath | ConvertFrom-Json
   $baselineCredential = Get-Content -Raw -LiteralPath $credentialsPath
-  Assert-Equal $baselineVersion ([string] $baselineState.version) "test starts from immutable v0.3.4"
+  Assert-Equal $baselineVersion ([string] $baselineState.version) "test starts from immutable v0.3.5"
   Assert-Equal $baselineTag ([string] $baselineState.releaseTag) "baseline state records the immutable tag"
   Assert-Equal "https://api.algomim.com" ([string] $baselineState.baseUrl) "baseline records the service-root base URL"
 
@@ -109,35 +119,12 @@ exit /b 0
   $candidateManifestPath = Join-Path $artifacts "manifest.json"
   Write-JsonFile -Path $candidateManifestPath -Value $candidateManifest
 
-  $stateBeforeCliGate = Get-Content -Raw -LiteralPath $statePath
-  $cliGateRejected = $false
-  try {
-    & (Join-Path $integrationHome "update.ps1") `
-      -ManifestUrl $candidateManifestPath `
-      -ArtifactBaseUrl $artifacts *> $null
-  }
-  catch {
-    $cliGateRejected = $_.Exception.Message -match 'requires Algomim CLI 0\.3\.5 or newer'
-  }
-  Assert-True $cliGateRejected "v0.3.4 CLI is rejected before installing the isolation-dependent integration"
-  Assert-Equal $stateBeforeCliGate (Get-Content -Raw -LiteralPath $statePath) "CLI gate rollback restores the baseline integration"
-  Assert-Equal $runtimeSentinelBefore ([Convert]::ToBase64String([System.IO.File]::ReadAllBytes($runtimeSentinelPath))) "CLI gate rollback preserves isolated Claude Code runtime state"
-
-  & (Join-Path $repoRoot "cli\install.ps1") `
-    -AlgomimHome $algomimHome `
-    -ReleaseRef $candidateTag `
-    -ReleaseVersion $candidateVersion `
-    -PathTarget Process *> $null
-  $candidateCliState = Get-Content -Raw -LiteralPath (Join-Path $algomimHome "cli\state.json") | ConvertFrom-Json
-  Assert-Equal $candidateVersion ([string] $candidateCliState.version) "candidate CLI installer records the compatible launcher version"
-  Assert-True ((Get-Content -Raw -LiteralPath (Join-Path $algomimHome "bin\algomim.ps1")).Contains("CLAUDE_CONFIG_DIR")) "candidate CLI launcher contains Claude config isolation"
-
   $updateOutput = (& (Join-Path $integrationHome "update.ps1") `
       -ManifestUrl $candidateManifestPath `
       -ArtifactBaseUrl $artifacts *>&1 | Out-String)
   $updatedState = Get-Content -Raw -LiteralPath $statePath | ConvertFrom-Json
   $updatedSettings = Get-Content -Raw -LiteralPath $settingsPath | ConvertFrom-Json
-  Assert-Equal $candidateVersion ([string] $updatedState.version) "compatible CLI allows v0.3.4 updater to install candidate v0.3.5"
+  Assert-Equal $candidateVersion ([string] $updatedState.version) "v0.3.5 CLI and updater install candidate v0.3.6"
   Assert-Equal $candidateTag ([string] $updatedState.releaseTag) "updated state records the candidate tag"
   Assert-Equal ([string] $baselineState.installedAt) ([string] $updatedState.installedAt) "update preserves installation timestamp"
   Assert-Equal $baselineCredential (Get-Content -Raw -LiteralPath $credentialsPath) "update preserves the exact credential store"
@@ -152,10 +139,13 @@ exit /b 0
   Assert-Equal "Algomim" ([string] $updatedSettings.env.ANTHROPIC_CUSTOM_MODEL_OPTION_NAME) "updated settings label the custom model option"
   Assert-Equal "Algomim Model API" ([string] $updatedSettings.env.ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION) "updated settings describe the custom model option"
   Assert-Equal "0" ([string] $updatedSettings.env.CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY) "updated settings disable gateway model discovery"
+  Assert-Equal "1" ([string] $updatedSettings.env.CLAUDE_CODE_DISABLE_1M_CONTEXT) "updated settings disable unsupported 1M aliases"
   Assert-Equal "algomim" ([string] $updatedSettings.env.CLAUDE_CODE_SUBAGENT_MODEL) "updated settings redirect subagents"
   Assert-Equal "1" ([string] $updatedSettings.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB) "updated settings scrub the credential from child processes"
-  foreach ($familyPin in @("ANTHROPIC_DEFAULT_HAIKU_MODEL", "ANTHROPIC_DEFAULT_OPUS_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL", "ANTHROPIC_DEFAULT_FABLE_MODEL")) {
-    Assert-True ($null -eq $updatedSettings.env.PSObject.Properties[$familyPin]) "updated settings do not define $familyPin"
+  foreach ($family in @("FABLE", "OPUS", "SONNET", "HAIKU")) {
+    Assert-Equal "algomim" ([string] $updatedSettings.env.("ANTHROPIC_DEFAULT_${family}_MODEL")) "updated settings map the $family default to Algomim"
+    Assert-Equal "Algomim" ([string] $updatedSettings.env.("ANTHROPIC_DEFAULT_${family}_MODEL_NAME")) "updated settings label the $family default as Algomim"
+    Assert-Equal "Algomim Model API" ([string] $updatedSettings.env.("ANTHROPIC_DEFAULT_${family}_MODEL_DESCRIPTION")) "updated settings describe the $family default"
   }
 
   $upToDateOutput = (& (Join-Path $integrationHome "update.ps1") `

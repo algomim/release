@@ -5,7 +5,7 @@ BASE_URL=""
 API_KEY=""
 API_KEY_WAS_EXPLICIT="0"
 RELEASE_REF=""
-RELEASE_VERSION="0.3.5"
+RELEASE_VERSION="0.3.6"
 MINIMUM_ALGOMIM_CLI_VERSION="0.3.5"
 CREDENTIAL_PROFILE="${ALGOMIM_PROFILE:-default}"
 SKIP_KEY="0"
@@ -316,7 +316,20 @@ cat > "$GENERATED_SETTINGS" <<EOF
     "ANTHROPIC_CUSTOM_MODEL_OPTION": "algomim",
     "ANTHROPIC_CUSTOM_MODEL_OPTION_NAME": "Algomim",
     "ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION": "Algomim Model API",
+    "ANTHROPIC_DEFAULT_FABLE_MODEL": "algomim",
+    "ANTHROPIC_DEFAULT_FABLE_MODEL_NAME": "Algomim",
+    "ANTHROPIC_DEFAULT_FABLE_MODEL_DESCRIPTION": "Algomim Model API",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "algomim",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL_NAME": "Algomim",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION": "Algomim Model API",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "algomim",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL_NAME": "Algomim",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL_DESCRIPTION": "Algomim Model API",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "algomim",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME": "Algomim",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL_DESCRIPTION": "Algomim Model API",
     "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY": "0",
+    "CLAUDE_CODE_DISABLE_1M_CONTEXT": "1",
     "CLAUDE_CODE_SUBAGENT_MODEL": "algomim",
     "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1"
   }
@@ -379,10 +392,14 @@ fi
 
 NORMAL_CLAUDE_CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 NORMAL_CLAUDE_SETTINGS="$NORMAL_CLAUDE_CONFIG_DIR/settings.json"
-if [ -f "$NORMAL_CLAUDE_SETTINGS" ] &&
-  grep -q '"model"[[:space:]]*:[[:space:]]*"algomim"' "$NORMAL_CLAUDE_SETTINGS"; then
-  printf '[warn] Normal Claude settings still select algomim from an earlier session: %s. Remove the top-level model field to restore Claude\047s own default.\n' \
-    "$NORMAL_CLAUDE_SETTINGS" >&2
+if [ -f "$NORMAL_CLAUDE_SETTINGS" ]; then
+  NORMAL_CLAUDE_MODEL=$(json_field model "$NORMAL_CLAUDE_SETTINGS")
+  case "$NORMAL_CLAUDE_MODEL" in
+    algomim|claude-algomim)
+      printf '[warn] Normal Claude settings still select %s from an earlier session: %s. Remove the top-level model field to restore Claude\047s own default.\n' \
+        "$NORMAL_CLAUDE_MODEL" "$NORMAL_CLAUDE_SETTINGS" >&2
+      ;;
+  esac
 fi
 
 printf '\nAlgomim Claude Code integration is ready.\n'

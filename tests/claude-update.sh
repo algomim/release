@@ -80,10 +80,10 @@ copy_claude_bundle() {
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
-BASELINE_VERSION="0.3.4"
+BASELINE_VERSION="0.3.5"
 BASELINE_TAG="v$BASELINE_VERSION"
-BASELINE_REVISION="1150c101eda16bacca985e3a772561f6c1167aaf"
-CANDIDATE_VERSION="0.3.5"
+BASELINE_REVISION="7de89a58ae019834ecc5a334ba690ae94d7c89a5"
+CANDIDATE_VERSION="0.3.6"
 CANDIDATE_TAG="v$CANDIDATE_VERSION"
 if [ "$CANDIDATE_VERSION" = "9999.9999.9999" ]; then
   INVALID_VERSION="9999.9999.9998"
@@ -112,13 +112,20 @@ PATH="$FAKE_BIN:$PATH"
 export ALGOMIM_HOME PATH
 unset ALGOMIM_API_KEY ALGOMIM_PROFILE 2>/dev/null || true
 
-BASELINE_ARCHIVE="$TEST_ROOT/claude-v0.3.4.tar"
-git -C "$REPO_ROOT" archive --format=tar --output="$BASELINE_ARCHIVE" "$BASELINE_REVISION" claude-code shared
+BASELINE_ARCHIVE="$TEST_ROOT/claude-v0.3.5.tar"
+git -C "$REPO_ROOT" archive --format=tar --output="$BASELINE_ARCHIVE" "$BASELINE_REVISION" claude-code cli codex shared
 mkdir -p "$STAGE/baseline"
 tar -xf "$BASELINE_ARCHIVE" -C "$STAGE/baseline"
-assert_equal "$BASELINE_VERSION" "$(json_field version "$STAGE/baseline/claude-code/release.json")" "baseline contract must record v0.3.4"
+assert_equal "$BASELINE_VERSION" "$(json_field version "$STAGE/baseline/claude-code/release.json")" "baseline contract must record v0.3.5"
 assert_equal "$BASELINE_TAG" "$(json_field releaseTag "$STAGE/baseline/claude-code/release.json")" "baseline contract must match the immutable tag"
 
+sh "$STAGE/baseline/cli/install.sh" \
+  --algomim-home "$ALGOMIM_HOME" \
+  --release-ref "$BASELINE_TAG" \
+  --release-version "$BASELINE_VERSION" \
+  --path-target process >/dev/null
+assert_equal "$BASELINE_VERSION" "$(json_field version "$ALGOMIM_HOME/cli/state.json")" "test must install the immutable v0.3.5 CLI"
+grep -q 'CLAUDE_CONFIG_DIR_PATH=' "$ALGOMIM_HOME/bin/algomim" || fail "baseline CLI launcher must contain Claude config isolation"
 sh "$STAGE/baseline/claude-code/install.sh" \
   --api-key "$KEY" \
   --release-version "$BASELINE_VERSION" \
@@ -137,7 +144,7 @@ cp "$RUNTIME_SENTINEL" "$TEST_ROOT/runtime-sentinel.before"
 
 BASELINE_INSTALLED_AT=$(json_field installedAt "$STATE_PATH")
 cp "$CREDENTIALS_PATH" "$TEST_ROOT/credential-before-update"
-assert_equal "$BASELINE_VERSION" "$(json_field version "$STATE_PATH")" "test must start from immutable v0.3.4"
+assert_equal "$BASELINE_VERSION" "$(json_field version "$STATE_PATH")" "test must start from immutable v0.3.5"
 assert_equal "$BASELINE_TAG" "$(json_field releaseTag "$STATE_PATH")" "baseline state must record the immutable tag"
 assert_equal "https://api.algomim.com" "$(json_field baseUrl "$STATE_PATH")" "baseline must record the service-root base URL"
 
@@ -148,32 +155,11 @@ tar -czf "$ARTIFACTS/$CANDIDATE_ARTIFACT" -C "$STAGE/candidate" claude-code shar
 CANDIDATE_HASH=$(sha256_file "$ARTIFACTS/$CANDIDATE_ARTIFACT")
 write_manifest "$CANDIDATE_VERSION" "$CANDIDATE_ARTIFACT" "$CANDIDATE_HASH" "$ARTIFACTS/manifest.json"
 
-cp "$STATE_PATH" "$TEST_ROOT/state-before-cli-gate.json"
-if CLI_GATE_OUTPUT=$(sh "$INTEGRATION_HOME/update.sh" \
-  --manifest-url "$ARTIFACTS/manifest.json" \
-  --artifact-base-url "$ARTIFACTS" 2>&1); then
-  fail "v0.3.4 CLI must not install the isolation-dependent integration"
-fi
-case "$CLI_GATE_OUTPUT" in
-  *"requires Algomim CLI 0.3.5 or newer"*) ;;
-  *) fail "incompatible CLI rejection must explain the tag-pinned installer requirement" ;;
-esac
-cmp -s "$TEST_ROOT/state-before-cli-gate.json" "$STATE_PATH" || fail "CLI gate rollback must restore the baseline integration"
-cmp -s "$TEST_ROOT/runtime-sentinel.before" "$RUNTIME_SENTINEL" || fail "CLI gate rollback must preserve isolated Claude Code runtime state"
-
-sh "$REPO_ROOT/cli/install.sh" \
-  --algomim-home "$ALGOMIM_HOME" \
-  --release-ref "$CANDIDATE_TAG" \
-  --release-version "$CANDIDATE_VERSION" \
-  --path-target process >/dev/null
-assert_equal "$CANDIDATE_VERSION" "$(json_field version "$ALGOMIM_HOME/cli/state.json")" "candidate CLI installer must record the compatible launcher version"
-grep -q 'CLAUDE_CONFIG_DIR_PATH=' "$ALGOMIM_HOME/bin/algomim" || fail "candidate CLI launcher must contain Claude config isolation"
-
 UPDATE_OUTPUT=$(sh "$INTEGRATION_HOME/update.sh" \
   --manifest-url "$ARTIFACTS/manifest.json" \
   --artifact-base-url "$ARTIFACTS" 2>&1)
 
-assert_equal "$CANDIDATE_VERSION" "$(json_field version "$STATE_PATH")" "compatible CLI must allow v0.3.4 updater to install candidate v0.3.5"
+assert_equal "$CANDIDATE_VERSION" "$(json_field version "$STATE_PATH")" "v0.3.5 CLI and updater must install candidate v0.3.6"
 assert_equal "$CANDIDATE_TAG" "$(json_field releaseTag "$STATE_PATH")" "updated state must record the candidate tag"
 assert_equal "$BASELINE_INSTALLED_AT" "$(json_field installedAt "$STATE_PATH")" "update must preserve installation timestamp"
 cmp -s "$TEST_ROOT/credential-before-update" "$CREDENTIALS_PATH" || fail "update must preserve the exact credential store"
@@ -187,10 +173,13 @@ assert_equal "algomim" "$(json_field ANTHROPIC_CUSTOM_MODEL_OPTION "$SETTINGS_PA
 assert_equal "Algomim" "$(json_field ANTHROPIC_CUSTOM_MODEL_OPTION_NAME "$SETTINGS_PATH")" "updated settings must label the custom model option"
 assert_equal "Algomim Model API" "$(json_field ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION "$SETTINGS_PATH")" "updated settings must describe the custom model option"
 assert_equal "0" "$(json_field CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY "$SETTINGS_PATH")" "updated settings must disable gateway model discovery"
+assert_equal "1" "$(json_field CLAUDE_CODE_DISABLE_1M_CONTEXT "$SETTINGS_PATH")" "updated settings must disable unsupported 1M aliases"
 assert_equal "algomim" "$(json_field CLAUDE_CODE_SUBAGENT_MODEL "$SETTINGS_PATH")" "updated settings must redirect subagents"
 assert_equal "1" "$(json_field CLAUDE_CODE_SUBPROCESS_ENV_SCRUB "$SETTINGS_PATH")" "updated settings must scrub the credential from child processes"
-for family_pin in ANTHROPIC_DEFAULT_HAIKU_MODEL ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_FABLE_MODEL; do
-  ! grep -q "\"$family_pin\"" "$SETTINGS_PATH" || fail "updated settings must not define $family_pin"
+for family in FABLE OPUS SONNET HAIKU; do
+  assert_equal "algomim" "$(json_field "ANTHROPIC_DEFAULT_${family}_MODEL" "$SETTINGS_PATH")" "updated settings must map the $family default to Algomim"
+  assert_equal "Algomim" "$(json_field "ANTHROPIC_DEFAULT_${family}_MODEL_NAME" "$SETTINGS_PATH")" "updated settings must label the $family default as Algomim"
+  assert_equal "Algomim Model API" "$(json_field "ANTHROPIC_DEFAULT_${family}_MODEL_DESCRIPTION" "$SETTINGS_PATH")" "updated settings must describe the $family default"
 done
 
 UP_TO_DATE_OUTPUT=$(sh "$INTEGRATION_HOME/update.sh" \
@@ -239,6 +228,6 @@ if sh "$INTEGRATION_HOME/update.sh" \
 fi
 cmp -s "$TEST_ROOT/state-before-rollback.json" "$STATE_PATH" || fail "checksum rejection must leave state unchanged"
 
-printf '[ok] POSIX Claude Code v0.3.4 to candidate v0.3.5 update and rollback tests passed.\n'
+printf '[ok] POSIX Claude Code v0.3.5 to candidate v0.3.6 update and rollback tests passed.\n'
 rm -rf "$TEST_ROOT"
 trap - HUP INT TERM EXIT

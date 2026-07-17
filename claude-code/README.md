@@ -69,10 +69,12 @@ terminals.
 
 With the normal Claude configuration (no separate `availableModels` policy),
 an Algomim session's `/model` picker shows `Algomim` as its only named model.
-Claude Code retains its own `Default` entry; this integration neither removes
-nor remaps that client-owned choice. Opus, Sonnet, Haiku, and Fable are hidden
-from the named model list. Plain `claude` remains unaffected and continues to
-use your own Anthropic account.
+Claude Code retains its own `Default` entry, but the integration's
+process-scoped model-family mappings make that choice resolve to the same
+canonical `algomim` model and display it as `Algomim`. Opus, Sonnet, Haiku,
+and Fable are hidden from the named model list; typing one of those aliases
+inside the Algomim session still resolves to `algomim`. Plain `claude` remains
+unaffected and continues to use your own Anthropic account.
 
 The normal user-level `~/.claude/settings.json` file is not loaded in Algomim
 sessions. Project/local settings and an administrator's managed policy still
@@ -106,11 +108,12 @@ Updates download the published release archive, verify its SHA-256 checksum
 against the release manifest, stage the new files, run an offline doctor, and
 restore the previous installation exactly if anything fails.
 
-For v0.3.5, run the tag-pinned installer once even if an older Claude Code
-integration is already installed. The isolation change lives in the Algomim
-CLI launcher. `algomim update claude` deliberately owns only the active
-integration directory, so an older CLI is rejected and the integration update
-is rolled back instead of reporting a false success.
+Users already on v0.3.5 or newer can run `algomim update claude`. Older
+integrations must run the current tag-pinned installer once because the
+isolation change lives in the Algomim CLI launcher. `algomim update claude`
+deliberately owns only the active integration directory, so an older CLI is
+rejected and the integration update is rolled back instead of reporting a
+false success.
 
 ## Uninstall
 
@@ -125,7 +128,7 @@ credential. The installer does not add files to `~/.claude`.
 
 ## Minimum versions
 
-- Algomim CLI 0.3.5 or newer. Existing users install the current tag once.
+- Algomim CLI 0.3.5 or newer. Users below v0.3.5 install the current tag once.
 - Claude Code 2.1.200 or newer. Verify with `claude --version`.
 - The recorded base URL is the service root, such as
   `https://api.algomim.com`, without a trailing `/v1`.
@@ -146,14 +149,20 @@ settings. The settings file then routes the session to Algomim:
 - `availableModels` — allows only the named `algomim` model
 - `ANTHROPIC_CUSTOM_MODEL_OPTION` — adds `algomim` to `/model`, with the
   `_NAME` and `_DESCRIPTION` companions setting its Algomim label and summary
+- `ANTHROPIC_DEFAULT_*_MODEL` — maps Claude Code's Fable, Opus, Sonnet, and
+  Haiku default resolution to the canonical `algomim` model for this process;
+  the matching `_NAME` and `_DESCRIPTION` companions display `Algomim`
+- `CLAUDE_CODE_DISABLE_1M_CONTEXT=1` — prevents Claude Code from appending an
+  unsupported `[1m]` suffix when the account-level Default normally uses it
 - `CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=0` — prevents `/v1/models` from
   adding a second picker entry
 - `CLAUDE_CODE_SUBAGENT_MODEL` — `algomim` for subagents
 - `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` — keeps the bearer token out of tool,
   hook, and stdio MCP child processes
 
-No `ANTHROPIC_DEFAULT_*_MODEL` family override is used, so Algomim is never
-presented as a custom Haiku, Sonnet, Opus, or Fable model.
+The family mappings never change Algomim's public model ID: every routed
+request uses `model: "algomim"`; identifiers such as `claude-algomim` are not
+created or sent.
 
 Token counting endpoints are not provided; Claude Code falls back to its local
 context estimate, which is expected and harmless.
@@ -170,7 +179,7 @@ context estimate, which is expected and harmless.
 | `429` | Token quota exhausted | Ask for a quota extension |
 | Session uses your Anthropic account instead of Algomim | Plain `claude` was started instead of `algomim run claude` | Start with `algomim run claude` |
 | Doctor requires a newer Algomim CLI | An integration-only update cannot replace the launcher that owns config isolation | Run the current tag-pinned installer once |
-| Doctor says normal Claude still selects `algomim` | An older Algomim session saved its model before config isolation was installed | Remove only the top-level `"model": "algomim"` field from the reported normal Claude settings file |
+| Doctor says normal Claude still selects `algomim` or `claude-algomim` | An older Algomim session saved its model before config isolation was installed | Remove only the reported top-level `model` field from the normal Claude settings file |
 
 ## Security
 
@@ -197,6 +206,11 @@ context estimate, which is expected and harmless.
   `_DESCRIPTION` companions control the picker label and description.
 - `availableModels` restricts named picker entries but does not remove Claude
   Code's client-owned `Default` entry.
+- `ANTHROPIC_DEFAULT_*_MODEL` controls what that Default entry and the built-in
+  family aliases resolve to; its `_NAME` and `_DESCRIPTION` companions control
+  the gateway-facing picker label.
+- `CLAUDE_CODE_DISABLE_1M_CONTEXT=1` keeps the resolved model ID exactly
+  `algomim` instead of `algomim[1m]`.
 - Gateway model discovery is explicitly disabled so `/v1/models` does not add
   a second picker entry.
 - `CLAUDE_CODE_SUBAGENT_MODEL` redirects subagent and agent-team requests.

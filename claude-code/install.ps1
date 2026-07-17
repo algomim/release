@@ -2,7 +2,7 @@ param(
   [string] $BaseUrl = "",
   [string] $ApiKey = "",
   [string] $ReleaseRef = "",
-  [string] $ReleaseVersion = "0.3.5",
+  [string] $ReleaseVersion = "0.3.6",
   [string] $CredentialProfile = "",
   [string] $AlgomimHome = "",
   [switch] $SkipKey,
@@ -348,7 +348,20 @@ $settings = @"
     "ANTHROPIC_CUSTOM_MODEL_OPTION": "algomim",
     "ANTHROPIC_CUSTOM_MODEL_OPTION_NAME": "Algomim",
     "ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION": "Algomim Model API",
+    "ANTHROPIC_DEFAULT_FABLE_MODEL": "algomim",
+    "ANTHROPIC_DEFAULT_FABLE_MODEL_NAME": "Algomim",
+    "ANTHROPIC_DEFAULT_FABLE_MODEL_DESCRIPTION": "Algomim Model API",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "algomim",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL_NAME": "Algomim",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION": "Algomim Model API",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "algomim",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL_NAME": "Algomim",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL_DESCRIPTION": "Algomim Model API",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "algomim",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME": "Algomim",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL_DESCRIPTION": "Algomim Model API",
     "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY": "0",
+    "CLAUDE_CODE_DISABLE_1M_CONTEXT": "1",
     "CLAUDE_CODE_SUBAGENT_MODEL": "algomim",
     "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1"
   }
@@ -416,8 +429,9 @@ $normalClaudeSettingsPath = Join-Path $normalClaudeConfigDir "settings.json"
 if (Test-Path -LiteralPath $normalClaudeSettingsPath -PathType Leaf) {
   try {
     $normalClaudeSettings = Get-Content -Raw -LiteralPath $normalClaudeSettingsPath | ConvertFrom-Json
-    if ([string] $normalClaudeSettings.model -eq "algomim") {
-      Write-Warning "Normal Claude settings still select algomim from an earlier session: $normalClaudeSettingsPath. Remove the top-level model field to restore Claude's own default."
+    $normalClaudeModel = [string] $normalClaudeSettings.model
+    if (@("algomim", "claude-algomim") -ccontains $normalClaudeModel) {
+      Write-Warning "Normal Claude settings still select $normalClaudeModel from an earlier session: $normalClaudeSettingsPath. Remove the top-level model field to restore Claude's own default."
     }
   }
   catch {

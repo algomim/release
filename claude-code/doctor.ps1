@@ -203,6 +203,7 @@ if (Test-Path -LiteralPath $settingsPath) {
           @{ Name = "ANTHROPIC_CUSTOM_MODEL_OPTION_NAME"; Expected = "Algomim" },
           @{ Name = "ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION"; Expected = "Algomim Model API" },
           @{ Name = "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY"; Expected = "0" },
+          @{ Name = "CLAUDE_CODE_DISABLE_1M_CONTEXT"; Expected = "1" },
           @{ Name = "CLAUDE_CODE_SUBAGENT_MODEL"; Expected = "algomim" },
           @{ Name = "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"; Expected = "1" }
         )) {
@@ -215,22 +216,22 @@ if (Test-Path -LiteralPath $settingsPath) {
         }
       }
 
-      $familyOverrides = @(
-        "ANTHROPIC_DEFAULT_HAIKU_MODEL",
-        "ANTHROPIC_DEFAULT_SONNET_MODEL",
-        "ANTHROPIC_DEFAULT_OPUS_MODEL",
-        "ANTHROPIC_DEFAULT_FABLE_MODEL"
-      )
-      $presentFamilyOverrides = @($familyOverrides | Where-Object {
-          $null -ne $settings.env.PSObject.Properties[$_]
-        })
-      if ($presentFamilyOverrides.Count -eq 0) {
-        Check-Ok "Settings do not override Claude model families."
-      }
-      else {
-        foreach ($familyOverride in $presentFamilyOverrides) {
-          Check-Fail "Settings must not set $familyOverride; use the Algomim custom model option instead."
+      $defaultMappingsValid = $true
+      foreach ($family in @("FABLE", "OPUS", "SONNET", "HAIKU")) {
+        foreach ($mapping in @(
+            @{ Suffix = "MODEL"; Expected = "algomim" },
+            @{ Suffix = "MODEL_NAME"; Expected = "Algomim" },
+            @{ Suffix = "MODEL_DESCRIPTION"; Expected = "Algomim Model API" }
+          )) {
+          $mappingName = "ANTHROPIC_DEFAULT_$($family)_$($mapping.Suffix)"
+          if ([string] $settings.env.($mappingName) -cne $mapping.Expected) {
+            Check-Fail "Settings do not set $mappingName to $($mapping.Expected)."
+            $defaultMappingsValid = $false
+          }
         }
+      }
+      if ($defaultMappingsValid) {
+        Check-Ok "Settings map every Claude default family to Algomim."
       }
 
       $baseUrl = [string] $settings.env.ANTHROPIC_BASE_URL
@@ -324,8 +325,9 @@ $normalClaudeSettingsPath = Join-Path $normalClaudeConfigDir "settings.json"
 if (Test-Path -LiteralPath $normalClaudeSettingsPath -PathType Leaf) {
   try {
     $normalClaudeSettings = Get-Content -Raw -LiteralPath $normalClaudeSettingsPath | ConvertFrom-Json
-    if ([string] $normalClaudeSettings.model -eq "algomim") {
-      Check-Warn "Normal Claude settings still select algomim from an earlier session: $normalClaudeSettingsPath. Remove the top-level model field to restore Claude's own default."
+    $normalClaudeModel = [string] $normalClaudeSettings.model
+    if (@("algomim", "claude-algomim") -ccontains $normalClaudeModel) {
+      Check-Warn "Normal Claude settings still select $normalClaudeModel from an earlier session: $normalClaudeSettingsPath. Remove the top-level model field to restore Claude's own default."
     }
   }
   catch {

@@ -34,13 +34,13 @@ release repository. See
 Windows PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/algomim/release/v0.3.5/codex/install.ps1 | iex
+irm https://raw.githubusercontent.com/algomim/release/v0.3.6/codex/install.ps1 | iex
 ```
 
 macOS/Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.3.5/codex/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.3.6/codex/install.sh | sh
 ```
 
 The installer asks for the Algomim API key without echoing it, installs the
@@ -60,13 +60,13 @@ Plain `codex` keeps using the user's existing OpenAI configuration.
 Windows PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/algomim/release/v0.3.5/claude-code/install.ps1 | iex
+irm https://raw.githubusercontent.com/algomim/release/v0.3.6/claude-code/install.ps1 | iex
 ```
 
 macOS/Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.3.5/claude-code/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.3.6/claude-code/install.sh | sh
 ```
 
 The installer does not edit `~/.claude`; plain `claude` keeps using the user's
@@ -78,10 +78,10 @@ plain Claude sessions. Start Claude Code against Algomim with:
 algomim run claude
 ```
 
-Existing Claude Code integration users must run the v0.3.5 installer above
-once. The isolation fix is implemented by the Algomim CLI launcher, while an
-integration-only `algomim update claude` intentionally does not replace that
-CLI executable.
+Users already on v0.3.5 or newer can update their installed integrations with
+`algomim update`; the CLI executable itself is refreshed only by a tag-pinned
+installer. Older Claude Code integrations must run the current installer once
+because config isolation is owned by the Algomim CLI launcher.
 
 ## The algomim CLI
 
@@ -124,6 +124,6 @@ hand-authored model metadata.
 - Keep API keys in the shared Algomim credential store, never in a
   client-owned directory.
 - Prefer versioned release URLs for customer-facing instructions once a release
-  is cut, for example `/v0.3.5/codex/install.ps1`.
+  is cut, for example `/v0.3.6/codex/install.ps1`.
 - Never move an existing release tag or replace published release assets; ship
   a new semantic version instead.
