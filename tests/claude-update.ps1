@@ -35,10 +35,19 @@ $key = "test-claude-update-key-000000"
 
 $savedAlgomimHome = $env:ALGOMIM_HOME
 $savedApiKey = $env:ALGOMIM_API_KEY
+$savedPath = $env:PATH
 
 try {
   New-Item -ItemType Directory -Path $testRoot, $artifacts, $candidateStage -Force | Out-Null
+  $fakeBin = Join-Path $testRoot "bin"
+  New-Item -ItemType Directory -Path $fakeBin -Force | Out-Null
+  Set-Content -LiteralPath (Join-Path $fakeBin "claude.cmd") -Encoding ascii -Value @"
+@echo off
+if "%~1"=="--version" echo 2.1.212
+exit /b 0
+"@
   $env:ALGOMIM_HOME = $algomimHome
+  $env:PATH = "$fakeBin;$savedPath"
   Remove-Item Env:ALGOMIM_API_KEY -ErrorAction SilentlyContinue
 
   & git -C $repoRoot archive --format=zip "--output=$baselineArchive" $baselineRevision claude-code shared
@@ -194,6 +203,7 @@ try {
 finally {
   if ($null -eq $savedAlgomimHome) { Remove-Item Env:ALGOMIM_HOME -ErrorAction SilentlyContinue } else { $env:ALGOMIM_HOME = $savedAlgomimHome }
   if ($null -eq $savedApiKey) { Remove-Item Env:ALGOMIM_API_KEY -ErrorAction SilentlyContinue } else { $env:ALGOMIM_API_KEY = $savedApiKey }
+  $env:PATH = $savedPath
   if (Test-Path -LiteralPath $testRoot) {
     Remove-Item -LiteralPath $testRoot -Recurse -Force
   }

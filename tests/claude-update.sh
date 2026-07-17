@@ -96,9 +96,19 @@ trap 'rm -rf "$TEST_ROOT"' HUP INT TERM EXIT
 ARTIFACTS="$TEST_ROOT/artifacts"
 STAGE="$TEST_ROOT/stage"
 ALGOMIM_HOME="$TEST_ROOT/algomim-home"
+FAKE_BIN="$TEST_ROOT/bin"
 KEY="test-claude-update-key-000000"
-mkdir -p "$ARTIFACTS" "$STAGE"
-export ALGOMIM_HOME
+mkdir -p "$ARTIFACTS" "$STAGE" "$FAKE_BIN"
+cat > "$FAKE_BIN/claude" <<'EOF'
+#!/usr/bin/env sh
+if [ "${1:-}" = "--version" ]; then
+  printf '2.1.212\n'
+fi
+exit 0
+EOF
+chmod 700 "$FAKE_BIN/claude"
+PATH="$FAKE_BIN:$PATH"
+export ALGOMIM_HOME PATH
 unset ALGOMIM_API_KEY ALGOMIM_PROFILE 2>/dev/null || true
 
 BASELINE_ARCHIVE="$TEST_ROOT/claude-v0.3.1.tar"
