@@ -58,13 +58,12 @@ try {
   Assert-Equal "algomim" ([string] $settings.env.ANTHROPIC_CUSTOM_MODEL_OPTION) "published install adds the Algomim custom model option"
   Assert-Equal "Algomim" ([string] $settings.env.ANTHROPIC_CUSTOM_MODEL_OPTION_NAME) "published install labels the custom model option"
   Assert-Equal "Algomim Model API" ([string] $settings.env.ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION) "published install describes the custom model option"
-  Assert-Equal "algomim" ([string] $settings.env.ANTHROPIC_DEFAULT_HAIKU_MODEL) "published install redirects background haiku traffic"
   Assert-Equal "algomim" ([string] $settings.env.CLAUDE_CODE_SUBAGENT_MODEL) "published install redirects subagents"
   Assert-Equal "1" ([string] $settings.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB) "published install scrubs the credential from child processes"
   Assert-True ($null -eq $settings.PSObject.Properties["availableModels"]) "published install does not add an availableModels allowlist"
   Assert-True ($null -eq $settings.PSObject.Properties["enforceAvailableModels"]) "published install does not enforce an availableModels allowlist"
-  foreach ($familyPin in @("ANTHROPIC_DEFAULT_OPUS_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL", "ANTHROPIC_DEFAULT_FABLE_MODEL")) {
-    Assert-True ([string]::IsNullOrWhiteSpace([string] $settings.env.$familyPin)) "published install does not pin $familyPin"
+  foreach ($familyPin in @("ANTHROPIC_DEFAULT_HAIKU_MODEL", "ANTHROPIC_DEFAULT_OPUS_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL", "ANTHROPIC_DEFAULT_FABLE_MODEL")) {
+    Assert-True ($null -eq $settings.env.PSObject.Properties[$familyPin]) "published install does not define $familyPin"
   }
   $cliPath = Join-Path $algomimHome "bin\algomim.ps1"
   Assert-True (Test-Path -LiteralPath $cliPath -PathType Leaf) "install writes the Algomim CLI"

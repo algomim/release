@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-RELEASE_VERSION="0.3.1"
+RELEASE_VERSION="0.3.2"
 RELEASE_REF=""
 ALGOMIM_HOME="${ALGOMIM_HOME:-$HOME/.algomim}"
 PATH_TARGET="profile"

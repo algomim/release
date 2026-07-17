@@ -111,13 +111,12 @@ assert_equal "algomim" "$(json_field ANTHROPIC_MODEL "$SETTINGS_PATH")" "publish
 assert_equal "algomim" "$(json_field ANTHROPIC_CUSTOM_MODEL_OPTION "$SETTINGS_PATH")" "published install must add the Algomim custom model option"
 assert_equal "Algomim" "$(json_field ANTHROPIC_CUSTOM_MODEL_OPTION_NAME "$SETTINGS_PATH")" "published install must label the custom model option"
 assert_equal "Algomim Model API" "$(json_field ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION "$SETTINGS_PATH")" "published install must describe the custom model option"
-assert_equal "algomim" "$(json_field ANTHROPIC_DEFAULT_HAIKU_MODEL "$SETTINGS_PATH")" "published install must redirect background haiku traffic"
 assert_equal "algomim" "$(json_field CLAUDE_CODE_SUBAGENT_MODEL "$SETTINGS_PATH")" "published install must redirect subagents"
 assert_equal "1" "$(json_field CLAUDE_CODE_SUBPROCESS_ENV_SCRUB "$SETTINGS_PATH")" "published install must scrub the credential from child processes"
 ! grep -q '"availableModels"' "$SETTINGS_PATH" || fail "published install must not add an availableModels allowlist"
 ! grep -q '"enforceAvailableModels"' "$SETTINGS_PATH" || fail "published install must not enforce an availableModels allowlist"
-for family_pin in ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_FABLE_MODEL; do
-  ! grep -q "\"$family_pin\"" "$SETTINGS_PATH" || fail "published install must not pin $family_pin"
+for family_pin in ANTHROPIC_DEFAULT_HAIKU_MODEL ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_FABLE_MODEL; do
+  ! grep -q "\"$family_pin\"" "$SETTINGS_PATH" || fail "published install must not define $family_pin"
 done
 
 MANIFEST="$TEST_ROOT/manifest.json"

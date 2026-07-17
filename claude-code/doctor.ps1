@@ -166,7 +166,6 @@ if (Test-Path -LiteralPath $settingsPath) {
     if ($null -ne $settings.env) {
       foreach ($required in @(
           @{ Name = "ANTHROPIC_MODEL"; Expected = "algomim" },
-          @{ Name = "ANTHROPIC_DEFAULT_HAIKU_MODEL"; Expected = "algomim" },
           @{ Name = "ANTHROPIC_CUSTOM_MODEL_OPTION"; Expected = "algomim" },
           @{ Name = "ANTHROPIC_CUSTOM_MODEL_OPTION_NAME"; Expected = "Algomim" },
           @{ Name = "ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION"; Expected = "Algomim Model API" },
@@ -179,6 +178,24 @@ if (Test-Path -LiteralPath $settingsPath) {
         }
         else {
           Check-Fail "Settings do not set $($required.Name) to $($required.Expected)."
+        }
+      }
+
+      $familyOverrides = @(
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL",
+        "ANTHROPIC_DEFAULT_FABLE_MODEL"
+      )
+      $presentFamilyOverrides = @($familyOverrides | Where-Object {
+          $null -ne $settings.env.PSObject.Properties[$_]
+        })
+      if ($presentFamilyOverrides.Count -eq 0) {
+        Check-Ok "Settings do not override Claude model families."
+      }
+      else {
+        foreach ($familyOverride in $presentFamilyOverrides) {
+          Check-Fail "Settings must not set $familyOverride; use the Algomim custom model option instead."
         }
       }
 

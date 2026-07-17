@@ -2,7 +2,7 @@ param(
   [string] $BaseUrl = "",
   [string] $ApiKey = "",
   [string] $ReleaseRef = "",
-  [string] $ReleaseVersion = "0.3.1",
+  [string] $ReleaseVersion = "0.3.2",
   [string] $CredentialProfile = "",
   [string] $AlgomimHome = "",
   [switch] $SkipKey,
@@ -328,7 +328,6 @@ $settings = @"
   "env": {
     "ANTHROPIC_BASE_URL": "$baseUrlJson",
     "ANTHROPIC_MODEL": "algomim",
-    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "algomim",
     "ANTHROPIC_CUSTOM_MODEL_OPTION": "algomim",
     "ANTHROPIC_CUSTOM_MODEL_OPTION_NAME": "Algomim",
     "ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION": "Algomim Model API",

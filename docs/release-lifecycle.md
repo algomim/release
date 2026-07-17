@@ -7,7 +7,7 @@ their public contract remains compatible.
 ## Version contract
 
 The Algomim CLI, Codex integration, and Claude Code integration use semantic
-versions such as `0.3.1` and immutable-by-policy Git tags such as `v0.3.1`.
+versions such as `0.3.2` and immutable-by-policy Git tags such as `v0.3.2`.
 Their source contracts are `cli/release.json`, `codex/release.json`, and
 `claude-code/release.json`. A release tag must match all three files exactly.
 
@@ -15,8 +15,8 @@ Customer installation instructions use a tag-pinned raw URL. They never run a
 mutable `main` installer:
 
 ```text
-https://raw.githubusercontent.com/algomim/release/v0.3.1/codex/install.ps1
-https://raw.githubusercontent.com/algomim/release/v0.3.1/claude-code/install.sh
+https://raw.githubusercontent.com/algomim/release/v0.3.2/codex/install.ps1
+https://raw.githubusercontent.com/algomim/release/v0.3.2/claude-code/install.sh
 ```
 
 Pushing a matching tag starts the release workflow. Windows, Ubuntu, and macOS
@@ -37,12 +37,12 @@ lifecycle tests must pass before the workflow publishes:
 ```text
 manifest.json
 SHA256SUMS
-algomim-codex-windows-v0.3.1.zip
-algomim-codex-posix-v0.3.1.tar.gz
-algomim-claude-code-windows-v0.3.1.zip
-algomim-claude-code-posix-v0.3.1.tar.gz
-algomim-cli-windows-v0.3.1.zip
-algomim-cli-posix-v0.3.1.tar.gz
+algomim-codex-windows-v0.3.2.zip
+algomim-codex-posix-v0.3.2.tar.gz
+algomim-claude-code-windows-v0.3.2.zip
+algomim-claude-code-posix-v0.3.2.tar.gz
+algomim-cli-windows-v0.3.2.zip
+algomim-cli-posix-v0.3.2.tar.gz
 ```
 
 Published tags and release assets must not be moved, replaced, or deleted. A
@@ -85,7 +85,7 @@ The CLI dispatcher is installed under `~/.algomim/bin`. On Windows that
 directory is added idempotently to the user PATH. On macOS/Linux a managed,
 replaceable PATH block is written to the active bash/zsh profile.
 
-## Update transaction
+## Codex update transaction
 
 The updater performs these steps:
 
@@ -106,3 +106,15 @@ The updater performs these steps:
 There is no background updater. Users or operators start updates explicitly.
 Hosted service changes do not require a local update unless the Codex profile,
 model catalog, auth adapter, or compatibility metadata changes.
+
+## Claude Code update and repair
+
+The Claude Code updater owns only the active integration directory. It verifies
+the Claude Code artifact, installs with credential and CLI installation
+disabled, runs the staged offline doctor, and restores the previous integration
+on failure. The shared credential store and separately installed CLI remain
+outside that rollback boundary.
+
+Because v0.3.1 shipped an older CLI repair bundle, those users run the v0.3.2
+tag-pinned installer once. The installer reuses the existing credential while
+refreshing both the active Claude Code integration and its CLI repair bundle.

@@ -154,7 +154,6 @@ if [ -f "$SETTINGS_PATH" ]; then
 
   for required_env in \
     ANTHROPIC_MODEL \
-    ANTHROPIC_DEFAULT_HAIKU_MODEL \
     ANTHROPIC_CUSTOM_MODEL_OPTION \
     CLAUDE_CODE_SUBAGENT_MODEL; do
     if grep -q "\"$required_env\"[[:space:]]*:[[:space:]]*\"algomim\"" "$SETTINGS_PATH"; then
@@ -175,6 +174,21 @@ if [ -f "$SETTINGS_PATH" ]; then
       fail "Settings do not set $setting_name to $setting_value."
     fi
   done
+
+  FAMILY_OVERRIDE_FOUND=0
+  for family_override in \
+    ANTHROPIC_DEFAULT_HAIKU_MODEL \
+    ANTHROPIC_DEFAULT_SONNET_MODEL \
+    ANTHROPIC_DEFAULT_OPUS_MODEL \
+    ANTHROPIC_DEFAULT_FABLE_MODEL; do
+    if grep -q "\"$family_override\"[[:space:]]*:" "$SETTINGS_PATH"; then
+      fail "Settings must not set $family_override; use the Algomim custom model option instead."
+      FAMILY_OVERRIDE_FOUND=1
+    fi
+  done
+  if [ "$FAMILY_OVERRIDE_FOUND" = "0" ]; then
+    ok "Settings do not override Claude model families."
+  fi
 
   BASE_URL=$(json_field ANTHROPIC_BASE_URL "$SETTINGS_PATH")
   if [ -n "$BASE_URL" ]; then

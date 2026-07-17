@@ -65,10 +65,9 @@ Normal `claude` (without the Algomim CLI) keeps using your own Anthropic
 account. Both can be used side by side in different terminals.
 
 Inside an Algomim session, `/model` lists `Algomim` as a custom model option.
-Claude Code's built-in Anthropic entries remain visible; do not switch to one
-from an Algomim session. Exit and start plain `claude` instead.
-Claude Code may also render the background Haiku mapping as a separate
-`algomim` row; the `Algomim` custom-model row is the canonical user choice.
+Claude Code's built-in Anthropic entries, including `Default`, remain visible;
+do not switch to one from an Algomim session. Exit and start plain `claude`
+instead.
 
 ## Doctor
 
@@ -94,6 +93,11 @@ algomim update claude
 Updates download the published release archive, verify its SHA-256 checksum
 against the release manifest, stage the new files, run an offline doctor, and
 restore the previous installation exactly if anything fails.
+
+If you installed v0.3.1, run the v0.3.2 tag-pinned installer once instead of
+relying only on `algomim update claude`. The integration updater deliberately
+owns only the active Claude Code installation; the pinned installer also
+refreshes the separately installed CLI and its bundled repair files.
 
 ## Uninstall
 
@@ -125,11 +129,13 @@ settings file routes the session to Algomim:
 - `model` / `ANTHROPIC_MODEL` — `algomim` for the main session
 - `ANTHROPIC_CUSTOM_MODEL_OPTION` — adds `algomim` to `/model`, with the
   `_NAME` and `_DESCRIPTION` companions setting its Algomim label and summary
-- `ANTHROPIC_DEFAULT_HAIKU_MODEL` — routes background Haiku-class work to
-  `algomim` without remapping the user-selectable Opus, Sonnet, or Fable rows
 - `CLAUDE_CODE_SUBAGENT_MODEL` — `algomim` for subagents
 - `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` — keeps the bearer token out of tool,
   hook, and stdio MCP child processes
+
+The integration does not set any `ANTHROPIC_DEFAULT_*_MODEL` family override.
+Algomim is exposed in the picker only through the custom model option, leaving
+Claude Code's built-in model families unchanged.
 
 Token counting endpoints are not provided; Claude Code falls back to its local
 context estimate, which is expected and harmless.
@@ -164,5 +170,4 @@ context estimate, which is expected and harmless.
   over a saved login while set.
 - `ANTHROPIC_CUSTOM_MODEL_OPTION` adds a custom `/model` entry; its `_NAME` and
   `_DESCRIPTION` companions control the picker label and description.
-- `ANTHROPIC_DEFAULT_HAIKU_MODEL` redirects background Haiku-class work.
 - `CLAUDE_CODE_SUBAGENT_MODEL` redirects subagent and agent-team requests.

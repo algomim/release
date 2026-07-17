@@ -61,19 +61,18 @@ exit /b 0
   Assert-Equal "algomim" ([string] $settings.env.ANTHROPIC_CUSTOM_MODEL_OPTION) "settings add the Algomim custom model option"
   Assert-Equal "Algomim" ([string] $settings.env.ANTHROPIC_CUSTOM_MODEL_OPTION_NAME) "settings label the custom model option"
   Assert-Equal "Algomim Model API" ([string] $settings.env.ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION) "settings describe the custom model option"
-  Assert-Equal "algomim" ([string] $settings.env.ANTHROPIC_DEFAULT_HAIKU_MODEL) "settings redirect background haiku traffic"
   Assert-Equal "algomim" ([string] $settings.env.CLAUDE_CODE_SUBAGENT_MODEL) "settings redirect subagents"
   Assert-Equal "1" ([string] $settings.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB) "settings scrub the credential from child processes"
   Assert-True ($null -eq $settings.PSObject.Properties["availableModels"]) "settings do not add an availableModels allowlist"
   Assert-True ($null -eq $settings.PSObject.Properties["enforceAvailableModels"]) "settings do not enforce an availableModels allowlist"
-  foreach ($familyPin in @("ANTHROPIC_DEFAULT_OPUS_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL", "ANTHROPIC_DEFAULT_FABLE_MODEL")) {
-    Assert-True ([string]::IsNullOrWhiteSpace([string] $settings.env.$familyPin)) "settings do not pin $familyPin"
+  foreach ($familyPin in @("ANTHROPIC_DEFAULT_HAIKU_MODEL", "ANTHROPIC_DEFAULT_OPUS_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL", "ANTHROPIC_DEFAULT_FABLE_MODEL")) {
+    Assert-True ($null -eq $settings.env.PSObject.Properties[$familyPin]) "settings do not define $familyPin"
   }
   Assert-True (-not (Get-Content -Raw -LiteralPath $settingsPath).Contains($key)) "settings never contain the API key"
 
   $state = Get-Content -Raw -LiteralPath $statePath | ConvertFrom-Json
   Assert-Equal "claude-code" ([string] $state.integration) "state records the integration id"
-  Assert-Equal "0.3.1" ([string] $state.version) "state records the release version"
+  Assert-Equal "0.3.2" ([string] $state.version) "state records the release version"
   Assert-Equal "https://pilot.example.com" ([string] $state.baseUrl) "state records the service-root base URL"
 
   Assert-True (-not (Test-Path -LiteralPath $claudeConfigDir)) "install never creates or touches the Claude Code config directory"
