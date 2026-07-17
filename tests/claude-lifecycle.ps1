@@ -24,19 +24,23 @@ try {
   New-Item -ItemType Directory -Path $testRoot | Out-Null
   $algomimHome = Join-Path $testRoot "algomim"
   $fakeBin = Join-Path $testRoot "bin"
-  $claudeConfigDir = Join-Path $testRoot "claude-user"
+  $normalClaudeConfigDir = Join-Path $testRoot "claude-user"
+  $normalClaudeSettingsPath = Join-Path $normalClaudeConfigDir "settings.json"
   $capturePath = Join-Path $testRoot "claude-capture.txt"
-  New-Item -ItemType Directory -Path $fakeBin | Out-Null
+  New-Item -ItemType Directory -Path $fakeBin, $normalClaudeConfigDir | Out-Null
+  Set-Content -LiteralPath $normalClaudeSettingsPath -Encoding utf8 -Value '{"model":"opus","availableModels":["opus"],"env":{"ANTHROPIC_BASE_URL":"https://user.example.com"}}'
+  $normalClaudeSettingsBefore = [Convert]::ToBase64String([System.IO.File]::ReadAllBytes($normalClaudeSettingsPath))
   Set-Content -LiteralPath (Join-Path $fakeBin "claude.cmd") -Encoding ascii -Value @"
 @echo off
 if "%~1"=="--version" echo 2.1.211
 if "%~1"=="--version" exit /b 0
 echo ARGS=%*> "%CLAUDE_STUB_CAPTURE%"
 echo TOKEN=%ANTHROPIC_AUTH_TOKEN%>> "%CLAUDE_STUB_CAPTURE%"
+echo CONFIG=%CLAUDE_CONFIG_DIR%>> "%CLAUDE_STUB_CAPTURE%"
 exit /b 0
 "@
   $env:ALGOMIM_HOME = $algomimHome
-  $env:CLAUDE_CONFIG_DIR = $claudeConfigDir
+  $env:CLAUDE_CONFIG_DIR = $normalClaudeConfigDir
   $env:PATH = "$fakeBin;$savedPath"
   Remove-Item Env:ALGOMIM_API_KEY -ErrorAction SilentlyContinue
   Remove-Item Env:ALGOMIM_PROFILE -ErrorAction SilentlyContinue
@@ -47,10 +51,20 @@ exit /b 0
 
   $integrationHome = Join-Path $algomimHome "integrations\claude-code"
   $settingsPath = Join-Path $integrationHome "settings.json"
+  $isolatedClaudeConfigDir = Join-Path $integrationHome "config"
   $statePath = Join-Path $integrationHome "state.json"
   $credentialsPath = Join-Path $algomimHome "credentials"
   $cli = Join-Path $algomimHome "bin\algomim.ps1"
   Assert-True (Test-Path -LiteralPath $settingsPath -PathType Leaf) "installer writes the session settings"
+  Assert-True (Test-Path -LiteralPath $isolatedClaudeConfigDir -PathType Container) "installer creates the isolated Claude Code config directory"
+  $isolatedConfigAcl = Get-Acl -LiteralPath $isolatedClaudeConfigDir
+  Assert-True $isolatedConfigAcl.AreAccessRulesProtected "isolated Claude Code config disables inherited ACL entries"
+  $currentUserSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+  $unexpectedConfigReaders = @($isolatedConfigAcl.Access | Where-Object {
+      $_.AccessControlType -eq [System.Security.AccessControl.AccessControlType]::Allow -and
+      $_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value -ne $currentUserSid
+    })
+  Assert-True ($unexpectedConfigReaders.Count -eq 0) "only the current user can read isolated Claude Code state"
   Assert-True (Test-Path -LiteralPath $statePath -PathType Leaf) "installer writes the integration state"
   Assert-True (Test-Path -LiteralPath $cli -PathType Leaf) "installer installs the Algomim CLI"
 
@@ -73,21 +87,13 @@ exit /b 0
 
   $state = Get-Content -Raw -LiteralPath $statePath | ConvertFrom-Json
   Assert-Equal "claude-code" ([string] $state.integration) "state records the integration id"
-  Assert-Equal "0.3.4" ([string] $state.version) "state records the release version"
+  Assert-Equal "0.3.5" ([string] $state.version) "state records the release version"
   Assert-Equal "https://pilot.example.com" ([string] $state.baseUrl) "state records the service-root base URL"
 
-  Assert-True (-not (Test-Path -LiteralPath $claudeConfigDir)) "install never creates or touches the Claude Code config directory"
+  Assert-Equal $normalClaudeSettingsBefore ([Convert]::ToBase64String([System.IO.File]::ReadAllBytes($normalClaudeSettingsPath))) "install does not modify normal Claude Code settings"
 
   & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $cli doctor claude --offline *> $null
   Assert-Equal "0" ([string] $LASTEXITCODE) "doctor claude --offline passes after install"
-
-  New-Item -ItemType Directory -Path $claudeConfigDir | Out-Null
-  Set-Content -LiteralPath (Join-Path $claudeConfigDir "settings.json") -Encoding utf8 -Value '{"availableModels":["opus"],"env":{"ANTHROPIC_BASE_URL":"https://user.example.com"}}'
-  $conflictOutput = (& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $cli doctor claude --offline 2>&1 | Out-String)
-  Assert-True ($conflictOutput.Contains("can conflict")) "doctor warns about conflicting user settings"
-  Assert-True ($conflictOutput.Contains("can expose additional models")) "doctor warns about a merged user model allowlist"
-  Assert-Equal "0" ([string] $LASTEXITCODE) "conflicting user settings warn without failing"
-  Remove-Item -LiteralPath $claudeConfigDir -Recurse -Force
 
   $env:CLAUDE_STUB_CAPTURE = $capturePath
   & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $cli run claude -- --version *> $null
@@ -97,12 +103,15 @@ exit /b 0
   Assert-True ($capture.Contains($settingsPath)) "run claude points at the installed settings"
   Assert-True ($capture.Contains("--version")) "run claude forwards passthrough arguments"
   Assert-True ($capture.Contains("TOKEN=$key")) "run claude injects the token into the process environment"
+  Assert-True ($capture.Contains("CONFIG=$isolatedClaudeConfigDir")) "run claude isolates Claude Code user state inside the integration"
   $argsLine = ($capture -split "`r?`n" | Where-Object { $_.StartsWith("ARGS=") }) -join ""
   Assert-True (-not $argsLine.Contains($key)) "run claude never places the token on the command line"
-  Assert-True (-not (Test-Path -LiteralPath $claudeConfigDir)) "run never creates the Claude Code config directory"
+  Assert-Equal $normalClaudeSettingsBefore ([Convert]::ToBase64String([System.IO.File]::ReadAllBytes($normalClaudeSettingsPath))) "run does not modify normal Claude Code settings"
 
   & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $cli uninstall claude *> $null
   Assert-True (-not (Test-Path -LiteralPath $integrationHome)) "uninstall claude removes only the integration"
+  Assert-True (Test-Path -LiteralPath $normalClaudeSettingsPath -PathType Leaf) "uninstall preserves normal Claude Code settings"
+  Assert-Equal $normalClaudeSettingsBefore ([Convert]::ToBase64String([System.IO.File]::ReadAllBytes($normalClaudeSettingsPath))) "uninstall leaves normal Claude Code settings unchanged"
   Assert-True (Test-Path -LiteralPath $cli -PathType Leaf) "uninstall claude preserves the CLI"
   Assert-True (Test-Path -LiteralPath $credentialsPath -PathType Leaf) "uninstall claude preserves credentials"
 

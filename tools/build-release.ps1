@@ -41,7 +41,14 @@ if ($contract.schemaVersion -ne 1 -or $contract.integration -ne "codex" -or $con
 if ($cliContract.schemaVersion -ne 1 -or $cliContract.product -ne "algomim-cli" -or $cliContract.version -ne $Version -or $cliContract.releaseTag -ne "v$Version") {
   throw "cli/release.json does not match version $Version."
 }
-if ($claudeCodeContract.schemaVersion -ne 1 -or $claudeCodeContract.integration -ne "claude-code" -or $claudeCodeContract.version -ne $Version -or $claudeCodeContract.releaseTag -ne "v$Version") {
+if (
+  $claudeCodeContract.schemaVersion -ne 1 -or
+  $claudeCodeContract.integration -ne "claude-code" -or
+  $claudeCodeContract.version -ne $Version -or
+  $claudeCodeContract.releaseTag -ne "v$Version" -or
+  ([string] $claudeCodeContract.minimumAlgomimCliVersion) -notmatch '^\d+\.\d+\.\d+$' -or
+  ([version] ([string] $claudeCodeContract.minimumAlgomimCliVersion)) -gt ([version] $cliContract.version)
+) {
   throw "claude-code/release.json does not match version $Version."
 }
 

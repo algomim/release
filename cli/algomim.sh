@@ -163,15 +163,26 @@ run_client() {
 
   STATE_PATH=$(integration_lifecycle claude-code state.json)
   SETTINGS_PATH=$(integration_lifecycle claude-code settings.json)
+  CLAUDE_CONFIG_DIR_PATH="$ALGOMIM_HOME/integrations/claude-code/config"
   command -v claude >/dev/null 2>&1 || {
     echo "Claude Code CLI is not available on PATH. Install Claude Code first." >&2
     exit 1
   }
+  if [ -L "$CLAUDE_CONFIG_DIR_PATH" ]; then
+    echo "Claude Code integration config path must not be a symbolic link: $CLAUDE_CONFIG_DIR_PATH" >&2
+    exit 1
+  fi
+  if [ -e "$CLAUDE_CONFIG_DIR_PATH" ] && [ ! -d "$CLAUDE_CONFIG_DIR_PATH" ]; then
+    echo "Claude Code integration config path must be a directory: $CLAUDE_CONFIG_DIR_PATH" >&2
+    exit 1
+  fi
+  mkdir -p "$CLAUDE_CONFIG_DIR_PATH"
+  chmod 700 "$CLAUDE_CONFIG_DIR_PATH"
   PROFILE="${ALGOMIM_PROFILE:-$(json_field credentialProfile "$STATE_PATH")}"
   PROFILE="${PROFILE:-default}"
   algomim_credential_validate_profile "$PROFILE" || exit $?
   TOKEN=$(run_credential "$PROFILE") || exit 1
-  ANTHROPIC_AUTH_TOKEN="$TOKEN" exec claude --settings "$SETTINGS_PATH" "$@"
+  ANTHROPIC_AUTH_TOKEN="$TOKEN" CLAUDE_CONFIG_DIR="$CLAUDE_CONFIG_DIR_PATH" exec claude --settings "$SETTINGS_PATH" "$@"
 }
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)

@@ -5,7 +5,8 @@ BASE_URL=""
 API_KEY=""
 API_KEY_WAS_EXPLICIT="0"
 RELEASE_REF=""
-RELEASE_VERSION="0.3.4"
+RELEASE_VERSION="0.3.5"
+MINIMUM_ALGOMIM_CLI_VERSION="0.3.5"
 CREDENTIAL_PROFILE="${ALGOMIM_PROFILE:-default}"
 SKIP_KEY="0"
 SKIP_CLI_INSTALL="0"
@@ -85,6 +86,19 @@ json_field() {
   path="$2"
   sed -n "s/^[[:space:]]*\"$field\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" "$path" | head -n 1 |
     sed 's/\\r//g; s/\\t/	/g; s/\\"/"/g; s/\\\\/\\/g'
+}
+
+version_at_least() {
+  current="$1"
+  minimum="$2"
+  awk -v current="$current" -v minimum="$minimum" 'BEGIN {
+    split(current, c, "."); split(minimum, m, ".")
+    for (i = 1; i <= 3; i++) {
+      if ((c[i] + 0) > (m[i] + 0)) exit 0
+      if ((c[i] + 0) < (m[i] + 0)) exit 1
+    }
+    exit 0
+  }'
 }
 
 atomic_copy() {
@@ -214,9 +228,25 @@ mkdir -p "$ALGOMIM_HOME"
 chmod 700 "$ALGOMIM_HOME"
 ALGOMIM_HOME=$(CDPATH= cd -- "$ALGOMIM_HOME" && pwd)
 
+if [ "$SKIP_CLI_INSTALL" = "1" ]; then
+  CLI_STATE_PATH="$ALGOMIM_HOME/cli/state.json"
+  INSTALLED_CLI_VERSION=""
+  if [ -f "$CLI_STATE_PATH" ] && [ "$(json_field product "$CLI_STATE_PATH")" = "algomim-cli" ]; then
+    INSTALLED_CLI_VERSION=$(json_field version "$CLI_STATE_PATH")
+  fi
+  if [ -z "$INSTALLED_CLI_VERSION" ] ||
+    ! printf '%s' "$INSTALLED_CLI_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' ||
+    ! version_at_least "$INSTALLED_CLI_VERSION" "$MINIMUM_ALGOMIM_CLI_VERSION"; then
+    printf 'Claude Code integration %s requires Algomim CLI %s or newer. Run the v%s tag-pinned Claude Code installer once.\n' \
+      "$RELEASE_VERSION" "$MINIMUM_ALGOMIM_CLI_VERSION" "$RELEASE_VERSION" >&2
+    exit 1
+  fi
+fi
+
 CREDENTIALS_PATH="$ALGOMIM_HOME/credentials"
 INTEGRATION_HOME="$ALGOMIM_HOME/integrations/claude-code"
 SETTINGS_PATH="$INTEGRATION_HOME/settings.json"
+CLAUDE_CONFIG_DIR_PATH="$INTEGRATION_HOME/config"
 STATE_PATH="$INTEGRATION_HOME/state.json"
 
 log "Using API base URL $BASE_URL"
@@ -263,6 +293,16 @@ fi
 
 mkdir -p "$INTEGRATION_HOME"
 chmod 700 "$INTEGRATION_HOME"
+if [ -L "$CLAUDE_CONFIG_DIR_PATH" ]; then
+  echo "Refusing to use a symbolic link as the Claude Code config directory: $CLAUDE_CONFIG_DIR_PATH" >&2
+  exit 1
+fi
+if [ -e "$CLAUDE_CONFIG_DIR_PATH" ] && [ ! -d "$CLAUDE_CONFIG_DIR_PATH" ]; then
+  echo "Claude Code config path must be a directory: $CLAUDE_CONFIG_DIR_PATH" >&2
+  exit 1
+fi
+mkdir -p "$CLAUDE_CONFIG_DIR_PATH"
+chmod 700 "$CLAUDE_CONFIG_DIR_PATH"
 
 BASE_URL_JSON=$(json_escape "$BASE_URL")
 GENERATED_SETTINGS=$(mktemp)
@@ -285,6 +325,7 @@ EOF
 atomic_copy "$GENERATED_SETTINGS" "$SETTINGS_PATH" 600
 rm -f "$GENERATED_SETTINGS"
 log "Installed Claude Code settings at $SETTINGS_PATH"
+log "Installed isolated Claude Code config directory at $CLAUDE_CONFIG_DIR_PATH"
 
 for release_file in install.sh update.sh doctor.sh uninstall.sh release.json; do
   case "$release_file" in
@@ -334,6 +375,14 @@ if command -v claude >/dev/null 2>&1; then
   log "Claude Code CLI found."
 else
   printf '[warn] Claude Code CLI was not found on PATH. Install Claude Code before running algomim run claude.\n' >&2
+fi
+
+NORMAL_CLAUDE_CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+NORMAL_CLAUDE_SETTINGS="$NORMAL_CLAUDE_CONFIG_DIR/settings.json"
+if [ -f "$NORMAL_CLAUDE_SETTINGS" ] &&
+  grep -q '"model"[[:space:]]*:[[:space:]]*"algomim"' "$NORMAL_CLAUDE_SETTINGS"; then
+  printf '[warn] Normal Claude settings still select algomim from an earlier session: %s. Remove the top-level model field to restore Claude\047s own default.\n' \
+    "$NORMAL_CLAUDE_SETTINGS" >&2
 fi
 
 printf '\nAlgomim Claude Code integration is ready.\n'

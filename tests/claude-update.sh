@@ -62,6 +62,7 @@ write_release_contract() {
   "integration": "claude-code",
   "version": "$version",
   "releaseTag": "v$version",
+  "minimumAlgomimCliVersion": "0.3.5",
   "channel": "pilot",
   "repository": "algomim/release"
 }
@@ -79,10 +80,10 @@ copy_claude_bundle() {
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
-BASELINE_VERSION="0.3.3"
+BASELINE_VERSION="0.3.4"
 BASELINE_TAG="v$BASELINE_VERSION"
-BASELINE_REVISION="d1f478e36449db680e662e82821eafd45e22cc06"
-CANDIDATE_VERSION="0.3.4"
+BASELINE_REVISION="1150c101eda16bacca985e3a772561f6c1167aaf"
+CANDIDATE_VERSION="0.3.5"
 CANDIDATE_TAG="v$CANDIDATE_VERSION"
 if [ "$CANDIDATE_VERSION" = "9999.9999.9999" ]; then
   INVALID_VERSION="9999.9999.9998"
@@ -111,11 +112,11 @@ PATH="$FAKE_BIN:$PATH"
 export ALGOMIM_HOME PATH
 unset ALGOMIM_API_KEY ALGOMIM_PROFILE 2>/dev/null || true
 
-BASELINE_ARCHIVE="$TEST_ROOT/claude-v0.3.3.tar"
+BASELINE_ARCHIVE="$TEST_ROOT/claude-v0.3.4.tar"
 git -C "$REPO_ROOT" archive --format=tar --output="$BASELINE_ARCHIVE" "$BASELINE_REVISION" claude-code shared
 mkdir -p "$STAGE/baseline"
 tar -xf "$BASELINE_ARCHIVE" -C "$STAGE/baseline"
-assert_equal "$BASELINE_VERSION" "$(json_field version "$STAGE/baseline/claude-code/release.json")" "baseline contract must record v0.3.3"
+assert_equal "$BASELINE_VERSION" "$(json_field version "$STAGE/baseline/claude-code/release.json")" "baseline contract must record v0.3.4"
 assert_equal "$BASELINE_TAG" "$(json_field releaseTag "$STAGE/baseline/claude-code/release.json")" "baseline contract must match the immutable tag"
 
 sh "$STAGE/baseline/claude-code/install.sh" \
@@ -127,11 +128,16 @@ sh "$STAGE/baseline/claude-code/install.sh" \
 INTEGRATION_HOME="$ALGOMIM_HOME/integrations/claude-code"
 STATE_PATH="$INTEGRATION_HOME/state.json"
 SETTINGS_PATH="$INTEGRATION_HOME/settings.json"
+CLAUDE_CONFIG_PATH="$INTEGRATION_HOME/config"
+RUNTIME_SENTINEL="$CLAUDE_CONFIG_PATH/runtime-sentinel.txt"
 CREDENTIALS_PATH="$ALGOMIM_HOME/credentials"
+mkdir -p "$CLAUDE_CONFIG_PATH"
+printf 'preserve Algomim Claude runtime state\n' > "$RUNTIME_SENTINEL"
+cp "$RUNTIME_SENTINEL" "$TEST_ROOT/runtime-sentinel.before"
 
 BASELINE_INSTALLED_AT=$(json_field installedAt "$STATE_PATH")
 cp "$CREDENTIALS_PATH" "$TEST_ROOT/credential-before-update"
-assert_equal "$BASELINE_VERSION" "$(json_field version "$STATE_PATH")" "test must start from immutable v0.3.3"
+assert_equal "$BASELINE_VERSION" "$(json_field version "$STATE_PATH")" "test must start from immutable v0.3.4"
 assert_equal "$BASELINE_TAG" "$(json_field releaseTag "$STATE_PATH")" "baseline state must record the immutable tag"
 assert_equal "https://api.algomim.com" "$(json_field baseUrl "$STATE_PATH")" "baseline must record the service-root base URL"
 
@@ -142,14 +148,36 @@ tar -czf "$ARTIFACTS/$CANDIDATE_ARTIFACT" -C "$STAGE/candidate" claude-code shar
 CANDIDATE_HASH=$(sha256_file "$ARTIFACTS/$CANDIDATE_ARTIFACT")
 write_manifest "$CANDIDATE_VERSION" "$CANDIDATE_ARTIFACT" "$CANDIDATE_HASH" "$ARTIFACTS/manifest.json"
 
+cp "$STATE_PATH" "$TEST_ROOT/state-before-cli-gate.json"
+if CLI_GATE_OUTPUT=$(sh "$INTEGRATION_HOME/update.sh" \
+  --manifest-url "$ARTIFACTS/manifest.json" \
+  --artifact-base-url "$ARTIFACTS" 2>&1); then
+  fail "v0.3.4 CLI must not install the isolation-dependent integration"
+fi
+case "$CLI_GATE_OUTPUT" in
+  *"requires Algomim CLI 0.3.5 or newer"*) ;;
+  *) fail "incompatible CLI rejection must explain the tag-pinned installer requirement" ;;
+esac
+cmp -s "$TEST_ROOT/state-before-cli-gate.json" "$STATE_PATH" || fail "CLI gate rollback must restore the baseline integration"
+cmp -s "$TEST_ROOT/runtime-sentinel.before" "$RUNTIME_SENTINEL" || fail "CLI gate rollback must preserve isolated Claude Code runtime state"
+
+sh "$REPO_ROOT/cli/install.sh" \
+  --algomim-home "$ALGOMIM_HOME" \
+  --release-ref "$CANDIDATE_TAG" \
+  --release-version "$CANDIDATE_VERSION" \
+  --path-target process >/dev/null
+assert_equal "$CANDIDATE_VERSION" "$(json_field version "$ALGOMIM_HOME/cli/state.json")" "candidate CLI installer must record the compatible launcher version"
+grep -q 'CLAUDE_CONFIG_DIR_PATH=' "$ALGOMIM_HOME/bin/algomim" || fail "candidate CLI launcher must contain Claude config isolation"
+
 UPDATE_OUTPUT=$(sh "$INTEGRATION_HOME/update.sh" \
   --manifest-url "$ARTIFACTS/manifest.json" \
   --artifact-base-url "$ARTIFACTS" 2>&1)
 
-assert_equal "$CANDIDATE_VERSION" "$(json_field version "$STATE_PATH")" "v0.3.3 updater must install candidate v0.3.4"
+assert_equal "$CANDIDATE_VERSION" "$(json_field version "$STATE_PATH")" "compatible CLI must allow v0.3.4 updater to install candidate v0.3.5"
 assert_equal "$CANDIDATE_TAG" "$(json_field releaseTag "$STATE_PATH")" "updated state must record the candidate tag"
 assert_equal "$BASELINE_INSTALLED_AT" "$(json_field installedAt "$STATE_PATH")" "update must preserve installation timestamp"
 cmp -s "$TEST_ROOT/credential-before-update" "$CREDENTIALS_PATH" || fail "update must preserve the exact credential store"
+cmp -s "$TEST_ROOT/runtime-sentinel.before" "$RUNTIME_SENTINEL" || fail "update must preserve isolated Claude Code runtime state"
 case "$UPDATE_OUTPUT" in *"$KEY"*) fail "update output must not contain credential" ;; esac
 grep -q '"model"[[:space:]]*:[[:space:]]*"algomim"' "$SETTINGS_PATH" || fail "updated settings must select the Algomim model"
 grep -q '"availableModels"[[:space:]]*:[[:space:]]*\[[[:space:]]*"algomim"[[:space:]]*\]' "$SETTINGS_PATH" || fail "updated settings must allow only the Algomim model"
@@ -200,6 +228,7 @@ fi
 cmp -s "$TEST_ROOT/state-before-rollback.json" "$STATE_PATH" || fail "rollback must restore exact state"
 assert_equal "$SETTINGS_HASH" "$(sha256_file "$SETTINGS_PATH")" "rollback must restore the session settings"
 cmp -s "$TEST_ROOT/credential-before-rollback" "$CREDENTIALS_PATH" || fail "rollback must not change credential"
+cmp -s "$TEST_ROOT/runtime-sentinel.before" "$RUNTIME_SENTINEL" || fail "rollback must restore isolated Claude Code runtime state"
 [ -f "$INTEGRATION_HOME/update.sh" ] || fail "rollback must restore lifecycle files"
 
 write_manifest "$INVALID_VERSION" "$BAD_ARTIFACT" "0000000000000000000000000000000000000000000000000000000000000000" "$ARTIFACTS/checksum-manifest.json"
@@ -210,6 +239,6 @@ if sh "$INTEGRATION_HOME/update.sh" \
 fi
 cmp -s "$TEST_ROOT/state-before-rollback.json" "$STATE_PATH" || fail "checksum rejection must leave state unchanged"
 
-printf '[ok] POSIX Claude Code v0.3.3 to candidate v0.3.4 update and rollback tests passed.\n'
+printf '[ok] POSIX Claude Code v0.3.4 to candidate v0.3.5 update and rollback tests passed.\n'
 rm -rf "$TEST_ROOT"
 trap - HUP INT TERM EXIT

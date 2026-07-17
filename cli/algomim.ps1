@@ -239,22 +239,36 @@ function Invoke-RunCommand {
   $statePath = Get-IntegrationLifecyclePath "claude-code" "state.json"
   $state = Get-Content -Raw -LiteralPath $statePath | ConvertFrom-Json
   $settingsPath = Get-IntegrationLifecyclePath "claude-code" "settings.json"
+  $claudeConfigDir = Join-Path (Split-Path -Parent $settingsPath) "config"
   if (-not (Get-Command claude -ErrorAction SilentlyContinue)) {
     throw "Claude Code CLI is not available on PATH. Install Claude Code first."
   }
+  if (Test-Path -LiteralPath $claudeConfigDir) {
+    $configDirectory = Get-Item -LiteralPath $claudeConfigDir -Force
+    if (-not $configDirectory.PSIsContainer -or ($configDirectory.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
+      throw "Claude Code integration config path must be a real directory: $claudeConfigDir"
+    }
+  }
+  else {
+    New-Item -ItemType Directory -Path $claudeConfigDir | Out-Null
+  }
+  Protect-AlgomimCredentialDirectory $claudeConfigDir
   $profile = if ($env:ALGOMIM_PROFILE) { $env:ALGOMIM_PROFILE.Trim() } else { [string] $state.credentialProfile }
   if ([string]::IsNullOrWhiteSpace($profile)) { $profile = "default" }
   Assert-AlgomimCredentialProfileName $profile
   $token = Get-RunCredential $profile
 
   $savedAuthToken = $env:ANTHROPIC_AUTH_TOKEN
+  $savedClaudeConfigDir = $env:CLAUDE_CONFIG_DIR
   try {
     $env:ANTHROPIC_AUTH_TOKEN = $token
+    $env:CLAUDE_CONFIG_DIR = $claudeConfigDir
     & claude --settings $settingsPath @Passthrough
     $exitCode = $LASTEXITCODE
   }
   finally {
     if ($null -eq $savedAuthToken) { Remove-Item Env:ANTHROPIC_AUTH_TOKEN -ErrorAction SilentlyContinue } else { $env:ANTHROPIC_AUTH_TOKEN = $savedAuthToken }
+    if ($null -eq $savedClaudeConfigDir) { Remove-Item Env:CLAUDE_CONFIG_DIR -ErrorAction SilentlyContinue } else { $env:CLAUDE_CONFIG_DIR = $savedClaudeConfigDir }
   }
   exit $exitCode
 }

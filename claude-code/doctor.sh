@@ -100,15 +100,44 @@ if [ -z "$CREDENTIAL_PROFILE" ]; then
 fi
 
 SETTINGS_PATH="$INTEGRATION_HOME/settings.json"
+CLAUDE_CONFIG_DIR_PATH="$INTEGRATION_HOME/config"
 CREDENTIALS_PATH="$ALGOMIM_HOME/credentials"
 
 RELEASE_CONTRACT="$INTEGRATION_HOME/release.json"
+MINIMUM_ALGOMIM_CLI_VERSION=""
 if [ -f "$RELEASE_CONTRACT" ] &&
   [ "$(json_field integration "$RELEASE_CONTRACT")" = "claude-code" ] &&
   [ "$(json_field version "$RELEASE_CONTRACT")" = "$STATE_VERSION" ]; then
   ok "Installed release contract matches the recorded version."
+  MINIMUM_ALGOMIM_CLI_VERSION=$(json_field minimumAlgomimCliVersion "$RELEASE_CONTRACT")
+  if ! printf '%s' "$MINIMUM_ALGOMIM_CLI_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+    fail "Installed release contract does not declare a valid minimum Algomim CLI version."
+    MINIMUM_ALGOMIM_CLI_VERSION=""
+  fi
 else
   fail "Installed release contract is missing or does not match the recorded version."
+fi
+
+if [ -n "$MINIMUM_ALGOMIM_CLI_VERSION" ]; then
+  CLI_STATE_PATH="$ALGOMIM_HOME/cli/state.json"
+  INSTALLED_CLI_VERSION=""
+  if [ -f "$CLI_STATE_PATH" ] && [ "$(json_field product "$CLI_STATE_PATH")" = "algomim-cli" ]; then
+    INSTALLED_CLI_VERSION=$(json_field version "$CLI_STATE_PATH")
+  fi
+  if [ -n "$INSTALLED_CLI_VERSION" ] &&
+    printf '%s' "$INSTALLED_CLI_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' &&
+    awk -v current="$INSTALLED_CLI_VERSION" -v minimum="$MINIMUM_ALGOMIM_CLI_VERSION" 'BEGIN {
+      split(current, c, "."); split(minimum, m, ".")
+      for (i = 1; i <= 3; i++) {
+        if ((c[i] + 0) > (m[i] + 0)) exit 0
+        if ((c[i] + 0) < (m[i] + 0)) exit 1
+      }
+      exit 0
+    }'; then
+    ok "Algomim CLI $INSTALLED_CLI_VERSION supports isolated Claude Code sessions."
+  else
+    fail "Algomim CLI $MINIMUM_ALGOMIM_CLI_VERSION or newer is required. Run the current tag-pinned Claude Code installer once."
+  fi
 fi
 
 for lifecycle_file in install.sh update.sh doctor.sh uninstall.sh; do
@@ -217,6 +246,24 @@ else
   fail "Settings are missing: $SETTINGS_PATH"
 fi
 
+if [ -L "$CLAUDE_CONFIG_DIR_PATH" ]; then
+  fail "Isolated Claude Code config directory must not be a symbolic link: $CLAUDE_CONFIG_DIR_PATH"
+elif [ -d "$CLAUDE_CONFIG_DIR_PATH" ]; then
+  CONFIG_MODE=$(credential_mode "$CLAUDE_CONFIG_DIR_PATH" || printf '')
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) ok "Claude Code user state is isolated at $CLAUDE_CONFIG_DIR_PATH" ;;
+    *)
+      if [ "$CONFIG_MODE" = "700" ]; then
+        ok "Claude Code user state is isolated at $CLAUDE_CONFIG_DIR_PATH"
+      else
+        fail "Isolated Claude Code config directory permissions are too broad (mode ${CONFIG_MODE:-unknown}); expected 700."
+      fi
+      ;;
+  esac
+else
+  fail "Isolated Claude Code config directory is missing: $CLAUDE_CONFIG_DIR_PATH"
+fi
+
 TOKEN=""
 if [ -n "${ALGOMIM_API_KEY:-}" ]; then
   if printf '%s' "$ALGOMIM_API_KEY" | LC_ALL=C grep '[[:cntrl:]]' >/dev/null 2>&1; then
@@ -249,17 +296,11 @@ else
   fail "No credential is available through ALGOMIM_API_KEY or $CREDENTIALS_PATH"
 fi
 
-CLAUDE_CONFIG_DIR_PATH="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-USER_SETTINGS_PATH="$CLAUDE_CONFIG_DIR_PATH/settings.json"
-if [ -f "$USER_SETTINGS_PATH" ]; then
-  for conflicting_env in ANTHROPIC_AUTH_TOKEN ANTHROPIC_API_KEY ANTHROPIC_BASE_URL; do
-    if grep -q "\"$conflicting_env\"" "$USER_SETTINGS_PATH"; then
-      warn "Your Claude Code settings ($USER_SETTINGS_PATH) set env.$conflicting_env. It can conflict with Algomim sessions."
-    fi
-  done
-  if grep -q '"availableModels"[[:space:]]*:' "$USER_SETTINGS_PATH"; then
-    warn "Your Claude Code settings ($USER_SETTINGS_PATH) define availableModels. Claude Code merges that list into Algomim sessions and can expose additional models."
-  fi
+NORMAL_CLAUDE_CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+NORMAL_CLAUDE_SETTINGS="$NORMAL_CLAUDE_CONFIG_DIR/settings.json"
+if [ -f "$NORMAL_CLAUDE_SETTINGS" ] &&
+  grep -q '"model"[[:space:]]*:[[:space:]]*"algomim"' "$NORMAL_CLAUDE_SETTINGS"; then
+  warn "Normal Claude settings still select algomim from an earlier session: $NORMAL_CLAUDE_SETTINGS. Remove the top-level model field to restore Claude's own default."
 fi
 
 if [ "$SKIP_API_CHECK" = "1" ]; then

@@ -20,9 +20,12 @@ HOME="$TEST_ROOT/home"
 ALGOMIM_HOME="$TEST_ROOT/algomim"
 FAKE_BIN="$TEST_ROOT/bin"
 CLAUDE_CONFIG_DIR="$TEST_ROOT/claude-user"
+NORMAL_CLAUDE_SETTINGS="$CLAUDE_CONFIG_DIR/settings.json"
 CAPTURE="$TEST_ROOT/claude-capture.txt"
 ALGOMIM_SHELL_PROFILE="$HOME/.profile"
-mkdir -p "$HOME" "$FAKE_BIN"
+mkdir -p "$HOME" "$FAKE_BIN" "$CLAUDE_CONFIG_DIR"
+printf '{"model":"opus","availableModels":["opus"],"env":{"ANTHROPIC_BASE_URL":"https://user.example.com"}}\n' > "$NORMAL_CLAUDE_SETTINGS"
+cp "$NORMAL_CLAUDE_SETTINGS" "$TEST_ROOT/normal-claude-settings.before"
 cat > "$FAKE_BIN/claude" <<'EOF'
 #!/usr/bin/env sh
 if [ "${1:-}" = "--version" ]; then
@@ -31,6 +34,7 @@ if [ "${1:-}" = "--version" ]; then
 fi
 printf 'ARGS=%s\n' "$*" > "$CLAUDE_STUB_CAPTURE"
 printf 'TOKEN=%s\n' "${ANTHROPIC_AUTH_TOKEN:-}" >> "$CLAUDE_STUB_CAPTURE"
+printf 'CONFIG=%s\n' "${CLAUDE_CONFIG_DIR:-}" >> "$CLAUDE_STUB_CAPTURE"
 exit 0
 EOF
 chmod 700 "$FAKE_BIN/claude"
@@ -45,10 +49,17 @@ case "$INSTALL_OUTPUT" in *"$KEY"*) fail "installer output must not expose the A
 
 INTEGRATION_HOME="$ALGOMIM_HOME/integrations/claude-code"
 SETTINGS_PATH="$INTEGRATION_HOME/settings.json"
+ISOLATED_CLAUDE_CONFIG="$INTEGRATION_HOME/config"
 STATE_PATH="$INTEGRATION_HOME/state.json"
 CREDENTIALS="$ALGOMIM_HOME/credentials"
 CLI="$ALGOMIM_HOME/bin/algomim"
 assert_file "$SETTINGS_PATH" "installer must write the session settings"
+[ -d "$ISOLATED_CLAUDE_CONFIG" ] || fail "installer must create the isolated Claude Code config directory"
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*) ;;
+  Darwin*) assert_equal "700" "$(stat -f '%Lp' "$ISOLATED_CLAUDE_CONFIG")" "isolated Claude Code config must use mode 700" ;;
+  *) assert_equal "700" "$(stat -c '%a' "$ISOLATED_CLAUDE_CONFIG")" "isolated Claude Code config must use mode 700" ;;
+esac
 assert_file "$STATE_PATH" "installer must write the integration state"
 assert_file "$CLI" "installer must install the Algomim CLI"
 
@@ -67,19 +78,12 @@ for family_pin in ANTHROPIC_DEFAULT_HAIKU_MODEL ANTHROPIC_DEFAULT_OPUS_MODEL ANT
 done
 grep -F "$KEY" "$SETTINGS_PATH" >/dev/null 2>&1 && fail "settings must not contain the API key"
 assert_equal "claude-code" "$(json_field integration "$STATE_PATH")" "state must record the integration id"
-assert_equal "0.3.4" "$(json_field version "$STATE_PATH")" "state must record the release version"
+assert_equal "0.3.5" "$(json_field version "$STATE_PATH")" "state must record the release version"
 assert_equal "https://pilot.example.com" "$(json_field baseUrl "$STATE_PATH")" "state must record the service-root base URL"
 
-[ ! -e "$CLAUDE_CONFIG_DIR" ] || fail "install must never create the Claude Code config directory"
+cmp -s "$TEST_ROOT/normal-claude-settings.before" "$NORMAL_CLAUDE_SETTINGS" || fail "install must not modify normal Claude Code settings"
 
 sh "$CLI" doctor claude --offline >/dev/null || fail "doctor claude --offline must pass after install"
-
-mkdir -p "$CLAUDE_CONFIG_DIR"
-printf '{"availableModels":["opus"],"env":{"ANTHROPIC_BASE_URL":"https://user.example.com"}}\n' > "$CLAUDE_CONFIG_DIR/settings.json"
-CONFLICT_OUTPUT=$(sh "$CLI" doctor claude --offline 2>&1) || fail "conflicting user settings must warn without failing"
-case "$CONFLICT_OUTPUT" in *"can conflict"*) ;; *) fail "doctor must warn about conflicting user settings" ;; esac
-case "$CONFLICT_OUTPUT" in *"can expose additional models"*) ;; *) fail "doctor must warn about a merged user model allowlist" ;; esac
-rm -rf "$CLAUDE_CONFIG_DIR"
 
 CLAUDE_STUB_CAPTURE="$CAPTURE"
 export CLAUDE_STUB_CAPTURE
@@ -88,11 +92,14 @@ grep -F -- "--settings" "$CAPTURE" >/dev/null || fail "run claude must pass the 
 grep -F "$SETTINGS_PATH" "$CAPTURE" >/dev/null || fail "run claude must point at the installed settings"
 grep -F -- "--version" "$CAPTURE" >/dev/null || fail "run claude must forward passthrough arguments"
 grep -F "TOKEN=$KEY" "$CAPTURE" >/dev/null || fail "run claude must inject the token into the process environment"
+grep -F "CONFIG=$ISOLATED_CLAUDE_CONFIG" "$CAPTURE" >/dev/null || fail "run claude must isolate Claude Code user state inside the integration"
 grep '^ARGS=' "$CAPTURE" | grep -F "$KEY" >/dev/null 2>&1 && fail "run claude must never place the token on the command line"
-[ ! -e "$CLAUDE_CONFIG_DIR" ] || fail "run must never create the Claude Code config directory"
+cmp -s "$TEST_ROOT/normal-claude-settings.before" "$NORMAL_CLAUDE_SETTINGS" || fail "run must not modify normal Claude Code settings"
 
 sh "$CLI" uninstall claude >/dev/null
 [ ! -d "$INTEGRATION_HOME" ] || fail "uninstall claude must remove only the integration"
+assert_file "$NORMAL_CLAUDE_SETTINGS" "uninstall must preserve normal Claude Code settings"
+cmp -s "$TEST_ROOT/normal-claude-settings.before" "$NORMAL_CLAUDE_SETTINGS" || fail "uninstall must leave normal Claude Code settings unchanged"
 assert_file "$CLI" "uninstall claude must preserve the CLI"
 assert_file "$CREDENTIALS" "uninstall claude must preserve credentials"
 

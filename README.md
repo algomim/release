@@ -34,13 +34,13 @@ release repository. See
 Windows PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/algomim/release/v0.3.4/codex/install.ps1 | iex
+irm https://raw.githubusercontent.com/algomim/release/v0.3.5/codex/install.ps1 | iex
 ```
 
 macOS/Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.3.4/codex/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.3.5/codex/install.sh | sh
 ```
 
 The installer asks for the Algomim API key without echoing it, installs the
@@ -60,25 +60,28 @@ Plain `codex` keeps using the user's existing OpenAI configuration.
 Windows PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/algomim/release/v0.3.4/claude-code/install.ps1 | iex
+irm https://raw.githubusercontent.com/algomim/release/v0.3.5/claude-code/install.ps1 | iex
 ```
 
 macOS/Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.3.4/claude-code/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.3.5/claude-code/install.sh | sh
 ```
 
 The installer does not edit `~/.claude`; plain `claude` keeps using the user's
-own Anthropic account. Start Claude Code against Algomim with:
+own Anthropic account. Algomim launches use an integration-owned Claude config
+directory so model choices, history, plugins, and credentials cannot leak into
+plain Claude sessions. Start Claude Code against Algomim with:
 
 ```sh
 algomim run claude
 ```
 
-Existing v0.3.3 Claude Code users can run `algomim update claude`. Users on an
-older release should run the v0.3.4 installer above once so both the active
-integration and the CLI's bundled repair files are refreshed.
+Existing Claude Code integration users must run the v0.3.5 installer above
+once. The isolation fix is implemented by the Algomim CLI launcher, while an
+integration-only `algomim update claude` intentionally does not replace that
+CLI executable.
 
 ## The algomim CLI
 
@@ -121,6 +124,6 @@ hand-authored model metadata.
 - Keep API keys in the shared Algomim credential store, never in a
   client-owned directory.
 - Prefer versioned release URLs for customer-facing instructions once a release
-  is cut, for example `/v0.3.4/codex/install.ps1`.
+  is cut, for example `/v0.3.5/codex/install.ps1`.
 - Never move an existing release tag or replace published release assets; ship
   a new semantic version instead.

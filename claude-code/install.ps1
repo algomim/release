@@ -2,7 +2,7 @@ param(
   [string] $BaseUrl = "",
   [string] $ApiKey = "",
   [string] $ReleaseRef = "",
-  [string] $ReleaseVersion = "0.3.4",
+  [string] $ReleaseVersion = "0.3.5",
   [string] $CredentialProfile = "",
   [string] $AlgomimHome = "",
   [switch] $SkipKey,
@@ -281,9 +281,25 @@ if ([string]::IsNullOrWhiteSpace($AlgomimHome)) {
 }
 $AlgomimHome = [System.IO.Path]::GetFullPath($AlgomimHome)
 
+$minimumAlgomimCliVersion = [version] "0.3.5"
+if ($SkipCliInstall) {
+  $cliStatePath = Join-Path $AlgomimHome "cli\state.json"
+  try {
+    $cliState = Get-Content -Raw -LiteralPath $cliStatePath | ConvertFrom-Json
+    $installedCliVersion = [version] ([string] $cliState.version)
+  }
+  catch {
+    throw "Claude Code integration $ReleaseVersion requires Algomim CLI $minimumAlgomimCliVersion or newer. Run the v$ReleaseVersion tag-pinned Claude Code installer once."
+  }
+  if ($cliState.product -ne "algomim-cli" -or $installedCliVersion -lt $minimumAlgomimCliVersion) {
+    throw "Claude Code integration $ReleaseVersion requires Algomim CLI $minimumAlgomimCliVersion or newer. Run the v$ReleaseVersion tag-pinned Claude Code installer once."
+  }
+}
+
 $credentialsPath = Join-Path $AlgomimHome "credentials"
 $integrationHome = Join-Path $AlgomimHome "integrations\claude-code"
 $settingsPath = Join-Path $integrationHome "settings.json"
+$claudeConfigDir = Join-Path $integrationHome "config"
 $statePath = Join-Path $integrationHome "state.json"
 
 Write-Step "Using API base URL $BaseUrl"
@@ -340,8 +356,14 @@ $settings = @"
 "@
 New-Item -ItemType Directory -Force -Path $integrationHome | Out-Null
 Protect-AlgomimCredentialDirectory $integrationHome
+if ((Test-Path -LiteralPath $claudeConfigDir) -and ((Get-Item -LiteralPath $claudeConfigDir -Force).Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
+  throw "Refusing to use a symbolic link or reparse point as the Claude Code config directory: $claudeConfigDir"
+}
+New-Item -ItemType Directory -Force -Path $claudeConfigDir | Out-Null
+Protect-AlgomimCredentialDirectory $claudeConfigDir
 Write-Utf8TextFileAtomically -Path $settingsPath -Content ($settings + [Environment]::NewLine)
 Write-Step "Installed Claude Code settings at $settingsPath"
+Write-Step "Installed isolated Claude Code config directory at $claudeConfigDir"
 
 foreach ($releaseFile in @("install.ps1", "update.ps1", "doctor.ps1", "uninstall.ps1", "release.json")) {
   Install-ReleaseFile -Name $releaseFile -Destination (Join-Path $integrationHome $releaseFile) -Ref $ReleaseRef
@@ -387,6 +409,20 @@ if (-not (Get-Command claude -ErrorAction SilentlyContinue)) {
 }
 else {
   Write-Step "Claude Code CLI found."
+}
+
+$normalClaudeConfigDir = if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { Join-Path $HOME ".claude" }
+$normalClaudeSettingsPath = Join-Path $normalClaudeConfigDir "settings.json"
+if (Test-Path -LiteralPath $normalClaudeSettingsPath -PathType Leaf) {
+  try {
+    $normalClaudeSettings = Get-Content -Raw -LiteralPath $normalClaudeSettingsPath | ConvertFrom-Json
+    if ([string] $normalClaudeSettings.model -eq "algomim") {
+      Write-Warning "Normal Claude settings still select algomim from an earlier session: $normalClaudeSettingsPath. Remove the top-level model field to restore Claude's own default."
+    }
+  }
+  catch {
+    Write-Warning "Normal Claude settings are not valid JSON and were not modified: $normalClaudeSettingsPath"
+  }
 }
 
 Write-Host ""

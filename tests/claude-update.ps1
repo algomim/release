@@ -17,17 +17,17 @@ function Write-JsonFile {
 }
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$baselineVersion = "0.3.3"
+$baselineVersion = "0.3.4"
 $baselineTag = "v$baselineVersion"
-$baselineRevision = "d1f478e36449db680e662e82821eafd45e22cc06"
-$candidateVersion = "0.3.4"
+$baselineRevision = "1150c101eda16bacca985e3a772561f6c1167aaf"
+$candidateVersion = "0.3.5"
 $candidateTag = "v$candidateVersion"
 $invalidVersion = if ($candidateVersion -ceq "9999.9999.9999") { "9999.9999.9998" } else { "9999.9999.9999" }
 $invalidTag = "v$invalidVersion"
 
 $testRoot = Join-Path $repoRoot (".claude-update-test-{0}" -f [Guid]::NewGuid().ToString("N"))
 $artifacts = Join-Path $testRoot "artifacts"
-$baselineArchive = Join-Path $testRoot "claude-v0.3.3.zip"
+$baselineArchive = Join-Path $testRoot "claude-v0.3.4.zip"
 $baselineSource = Join-Path $testRoot "baseline"
 $candidateStage = Join-Path $testRoot "candidate"
 $algomimHome = Join-Path $testRoot "algomim"
@@ -56,7 +56,7 @@ exit /b 0
   }
   Expand-Archive -LiteralPath $baselineArchive -DestinationPath $baselineSource
   $baselineContract = Get-Content -Raw -LiteralPath (Join-Path $baselineSource "claude-code\release.json") | ConvertFrom-Json
-  Assert-Equal $baselineVersion ([string] $baselineContract.version) "baseline contract records v0.3.3"
+  Assert-Equal $baselineVersion ([string] $baselineContract.version) "baseline contract records v0.3.4"
   Assert-Equal $baselineTag ([string] $baselineContract.releaseTag) "baseline contract matches the immutable tag"
 
   & (Join-Path $baselineSource "claude-code\install.ps1") `
@@ -68,11 +68,16 @@ exit /b 0
   $integrationHome = Join-Path $algomimHome "integrations\claude-code"
   $statePath = Join-Path $integrationHome "state.json"
   $settingsPath = Join-Path $integrationHome "settings.json"
+  $isolatedConfigDir = Join-Path $integrationHome "config"
+  $runtimeSentinelPath = Join-Path $isolatedConfigDir "runtime-sentinel.txt"
   $credentialsPath = Join-Path $algomimHome "credentials"
+  New-Item -ItemType Directory -Path $isolatedConfigDir -Force | Out-Null
+  Set-Content -LiteralPath $runtimeSentinelPath -Encoding utf8 -Value "preserve Algomim Claude runtime state"
+  $runtimeSentinelBefore = [Convert]::ToBase64String([System.IO.File]::ReadAllBytes($runtimeSentinelPath))
 
   $baselineState = Get-Content -Raw -LiteralPath $statePath | ConvertFrom-Json
   $baselineCredential = Get-Content -Raw -LiteralPath $credentialsPath
-  Assert-Equal $baselineVersion ([string] $baselineState.version) "test starts from immutable v0.3.3"
+  Assert-Equal $baselineVersion ([string] $baselineState.version) "test starts from immutable v0.3.4"
   Assert-Equal $baselineTag ([string] $baselineState.releaseTag) "baseline state records the immutable tag"
   Assert-Equal "https://api.algomim.com" ([string] $baselineState.baseUrl) "baseline records the service-root base URL"
 
@@ -104,15 +109,39 @@ exit /b 0
   $candidateManifestPath = Join-Path $artifacts "manifest.json"
   Write-JsonFile -Path $candidateManifestPath -Value $candidateManifest
 
+  $stateBeforeCliGate = Get-Content -Raw -LiteralPath $statePath
+  $cliGateRejected = $false
+  try {
+    & (Join-Path $integrationHome "update.ps1") `
+      -ManifestUrl $candidateManifestPath `
+      -ArtifactBaseUrl $artifacts *> $null
+  }
+  catch {
+    $cliGateRejected = $_.Exception.Message -match 'requires Algomim CLI 0\.3\.5 or newer'
+  }
+  Assert-True $cliGateRejected "v0.3.4 CLI is rejected before installing the isolation-dependent integration"
+  Assert-Equal $stateBeforeCliGate (Get-Content -Raw -LiteralPath $statePath) "CLI gate rollback restores the baseline integration"
+  Assert-Equal $runtimeSentinelBefore ([Convert]::ToBase64String([System.IO.File]::ReadAllBytes($runtimeSentinelPath))) "CLI gate rollback preserves isolated Claude Code runtime state"
+
+  & (Join-Path $repoRoot "cli\install.ps1") `
+    -AlgomimHome $algomimHome `
+    -ReleaseRef $candidateTag `
+    -ReleaseVersion $candidateVersion `
+    -PathTarget Process *> $null
+  $candidateCliState = Get-Content -Raw -LiteralPath (Join-Path $algomimHome "cli\state.json") | ConvertFrom-Json
+  Assert-Equal $candidateVersion ([string] $candidateCliState.version) "candidate CLI installer records the compatible launcher version"
+  Assert-True ((Get-Content -Raw -LiteralPath (Join-Path $algomimHome "bin\algomim.ps1")).Contains("CLAUDE_CONFIG_DIR")) "candidate CLI launcher contains Claude config isolation"
+
   $updateOutput = (& (Join-Path $integrationHome "update.ps1") `
       -ManifestUrl $candidateManifestPath `
       -ArtifactBaseUrl $artifacts *>&1 | Out-String)
   $updatedState = Get-Content -Raw -LiteralPath $statePath | ConvertFrom-Json
   $updatedSettings = Get-Content -Raw -LiteralPath $settingsPath | ConvertFrom-Json
-  Assert-Equal $candidateVersion ([string] $updatedState.version) "v0.3.3 updater installs candidate v0.3.4"
+  Assert-Equal $candidateVersion ([string] $updatedState.version) "compatible CLI allows v0.3.4 updater to install candidate v0.3.5"
   Assert-Equal $candidateTag ([string] $updatedState.releaseTag) "updated state records the candidate tag"
   Assert-Equal ([string] $baselineState.installedAt) ([string] $updatedState.installedAt) "update preserves installation timestamp"
   Assert-Equal $baselineCredential (Get-Content -Raw -LiteralPath $credentialsPath) "update preserves the exact credential store"
+  Assert-Equal $runtimeSentinelBefore ([Convert]::ToBase64String([System.IO.File]::ReadAllBytes($runtimeSentinelPath))) "update preserves isolated Claude Code runtime state"
   Assert-True (-not $updateOutput.Contains($key)) "update output never exposes the credential"
   Assert-Equal "algomim" ([string] $updatedSettings.model) "updated settings select the Algomim model"
   Assert-Equal "1" ([string] @($updatedSettings.availableModels).Count) "updated settings expose one named model"
@@ -181,6 +210,7 @@ exit /b 0
   Assert-Equal $stateBeforeRollback (Get-Content -Raw -LiteralPath $statePath) "rollback restores exact state"
   Assert-Equal $settingsHashBefore (Get-FileHash -LiteralPath $settingsPath -Algorithm SHA256).Hash "rollback restores the session settings"
   Assert-Equal $credentialBeforeRollback (Get-Content -Raw -LiteralPath $credentialsPath) "rollback never changes credential"
+  Assert-Equal $runtimeSentinelBefore ([Convert]::ToBase64String([System.IO.File]::ReadAllBytes($runtimeSentinelPath))) "rollback restores isolated Claude Code runtime state"
   Assert-True (Test-Path -LiteralPath (Join-Path $integrationHome "update.ps1")) "rollback restores lifecycle files"
 
   $checksumManifest = Get-Content -Raw -LiteralPath $badManifestPath | ConvertFrom-Json

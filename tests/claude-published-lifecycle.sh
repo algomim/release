@@ -72,9 +72,14 @@ json_claude_posix_field() {
 TEST_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/algomim-claude-published.XXXXXX")
 ALGOMIM_HOME="$TEST_ROOT/algomim-home"
 FAKE_BIN="$TEST_ROOT/bin"
+NORMAL_CLAUDE_CONFIG="$TEST_ROOT/claude-user"
+NORMAL_CLAUDE_SETTINGS="$NORMAL_CLAUDE_CONFIG/settings.json"
+CAPTURE="$TEST_ROOT/claude-capture.txt"
 INSTALLER="$TEST_ROOT/install.sh"
 KEY="sk-published-claude-000000"
-mkdir -p "$FAKE_BIN"
+mkdir -p "$FAKE_BIN" "$NORMAL_CLAUDE_CONFIG"
+printf '{"model":"opus","availableModels":["opus"]}\n' > "$NORMAL_CLAUDE_SETTINGS"
+cp "$NORMAL_CLAUDE_SETTINGS" "$TEST_ROOT/normal-claude-settings.before"
 
 cleanup() {
   rm -rf "$TEST_ROOT"
@@ -83,12 +88,19 @@ trap cleanup EXIT HUP INT TERM
 
 cat > "$FAKE_BIN/claude" <<'EOF'
 #!/usr/bin/env sh
-printf '2.1.211\n'
+if [ "${1:-}" = "--version" ]; then
+  printf '2.1.211\n'
+  exit 0
+fi
+printf 'ARGS=%s\n' "$*" > "$CLAUDE_STUB_CAPTURE"
+printf 'TOKEN=%s\n' "${ANTHROPIC_AUTH_TOKEN:-}" >> "$CLAUDE_STUB_CAPTURE"
+printf 'CONFIG=%s\n' "${CLAUDE_CONFIG_DIR:-}" >> "$CLAUDE_STUB_CAPTURE"
 exit 0
 EOF
 chmod 700 "$FAKE_BIN/claude"
 PATH="$FAKE_BIN:$PATH"
-export PATH ALGOMIM_HOME
+CLAUDE_CONFIG_DIR="$NORMAL_CLAUDE_CONFIG"
+export PATH ALGOMIM_HOME CLAUDE_CONFIG_DIR
 unset ALGOMIM_API_KEY ALGOMIM_PROFILE 2>/dev/null || true
 
 curl -fsSL "https://raw.githubusercontent.com/algomim/release/$TAG/claude-code/install.sh" -o "$INSTALLER"
@@ -100,9 +112,12 @@ INSTALL_OUTPUT=$(sh "$INSTALLER" \
 
 INTEGRATION_HOME="$ALGOMIM_HOME/integrations/claude-code"
 SETTINGS_PATH="$INTEGRATION_HOME/settings.json"
+ISOLATED_CLAUDE_CONFIG="$INTEGRATION_HOME/config"
 CREDENTIALS_PATH="$ALGOMIM_HOME/credentials"
 CLI="$ALGOMIM_HOME/bin/algomim"
 assert_file "$SETTINGS_PATH" "install must write the session settings"
+[ -d "$ISOLATED_CLAUDE_CONFIG" ] || fail "install must create the isolated Claude config directory"
+cmp -s "$TEST_ROOT/normal-claude-settings.before" "$NORMAL_CLAUDE_SETTINGS" || fail "install must preserve normal Claude settings"
 assert_file "$CLI" "install must write the Algomim CLI"
 case "$INSTALL_OUTPUT" in *"$KEY"*) fail "install output must not expose the credential" ;; esac
 grep -q '"model"[[:space:]]*:[[:space:]]*"algomim"' "$SETTINGS_PATH" || fail "published install must select the Algomim model"
@@ -118,6 +133,14 @@ assert_equal "1" "$(json_field CLAUDE_CODE_SUBPROCESS_ENV_SCRUB "$SETTINGS_PATH"
 for family_pin in ANTHROPIC_DEFAULT_HAIKU_MODEL ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_FABLE_MODEL; do
   ! grep -q "\"$family_pin\"" "$SETTINGS_PATH" || fail "published install must not define $family_pin"
 done
+
+CLAUDE_STUB_CAPTURE="$CAPTURE"
+export CLAUDE_STUB_CAPTURE
+sh "$CLI" run claude -- --version >/dev/null || fail "published CLI must launch Claude successfully"
+grep -F -- "--settings" "$CAPTURE" >/dev/null || fail "published CLI must pass integration settings"
+grep -F "TOKEN=$KEY" "$CAPTURE" >/dev/null || fail "published CLI must inject the Algomim token"
+grep -F "CONFIG=$ISOLATED_CLAUDE_CONFIG" "$CAPTURE" >/dev/null || fail "published CLI must isolate Claude user state"
+cmp -s "$TEST_ROOT/normal-claude-settings.before" "$NORMAL_CLAUDE_SETTINGS" || fail "published CLI must preserve normal Claude settings"
 
 MANIFEST="$TEST_ROOT/manifest.json"
 curl -fsSL "https://github.com/algomim/release/releases/download/$TAG/manifest.json" -o "$MANIFEST"
@@ -152,6 +175,7 @@ sh "$CLI" uninstall claude >/dev/null
 [ ! -d "$INTEGRATION_HOME" ] || fail "normal uninstall must remove the integration"
 assert_file "$CREDENTIALS_PATH" "normal uninstall must preserve credentials"
 assert_file "$CLI" "normal uninstall must preserve the CLI"
+cmp -s "$TEST_ROOT/normal-claude-settings.before" "$NORMAL_CLAUDE_SETTINGS" || fail "normal uninstall must preserve normal Claude settings"
 
 REINSTALL_OUTPUT=$(sh "$CLI" install claude --profile default 2>&1)
 assert_file "$SETTINGS_PATH" "reinstall must restore the session settings"

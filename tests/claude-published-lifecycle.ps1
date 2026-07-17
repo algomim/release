@@ -22,18 +22,34 @@ $version = $Matches[1]
 $testRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("algomim-claude-published-{0}" -f [Guid]::NewGuid().ToString("N"))
 $algomimHome = Join-Path $testRoot "algomim-home"
 $fakeBin = Join-Path $testRoot "bin"
+$normalClaudeConfigDir = Join-Path $testRoot "claude-user"
+$normalClaudeSettingsPath = Join-Path $normalClaudeConfigDir "settings.json"
+$capturePath = Join-Path $testRoot "claude-capture.txt"
 $installerPath = Join-Path $testRoot "install.ps1"
 $key = "sk-published-claude-000000"
 $savedPath = $env:PATH
 $savedAlgomimHome = $env:ALGOMIM_HOME
 $savedApiKey = $env:ALGOMIM_API_KEY
 $savedProfile = $env:ALGOMIM_PROFILE
+$savedClaudeConfigDir = $env:CLAUDE_CONFIG_DIR
+$savedStubCapture = $env:CLAUDE_STUB_CAPTURE
 
 try {
-  New-Item -ItemType Directory -Path $testRoot, $fakeBin -Force | Out-Null
-  Set-Content -LiteralPath (Join-Path $fakeBin "claude.cmd") -Value "@echo off`r`necho 2.1.211`r`nexit /b 0" -Encoding ascii
+  New-Item -ItemType Directory -Path $testRoot, $fakeBin, $normalClaudeConfigDir -Force | Out-Null
+  Set-Content -LiteralPath $normalClaudeSettingsPath -Encoding utf8 -Value '{"model":"opus","availableModels":["opus"]}'
+  $normalClaudeSettingsBefore = [Convert]::ToBase64String([System.IO.File]::ReadAllBytes($normalClaudeSettingsPath))
+  Set-Content -LiteralPath (Join-Path $fakeBin "claude.cmd") -Encoding ascii -Value @"
+@echo off
+if "%~1"=="--version" echo 2.1.211
+if "%~1"=="--version" exit /b 0
+echo ARGS=%*> "%CLAUDE_STUB_CAPTURE%"
+echo TOKEN=%ANTHROPIC_AUTH_TOKEN%>> "%CLAUDE_STUB_CAPTURE%"
+echo CONFIG=%CLAUDE_CONFIG_DIR%>> "%CLAUDE_STUB_CAPTURE%"
+exit /b 0
+"@
   $env:PATH = "$fakeBin;$savedPath"
   $env:ALGOMIM_HOME = $algomimHome
+  $env:CLAUDE_CONFIG_DIR = $normalClaudeConfigDir
   Remove-Item Env:ALGOMIM_API_KEY -ErrorAction SilentlyContinue
   Remove-Item Env:ALGOMIM_PROFILE -ErrorAction SilentlyContinue
 
@@ -49,7 +65,10 @@ try {
   $integrationHome = Join-Path $algomimHome "integrations\claude-code"
   $credentialsPath = Join-Path $algomimHome "credentials"
   $settingsPath = Join-Path $integrationHome "settings.json"
+  $isolatedClaudeConfigDir = Join-Path $integrationHome "config"
   Assert-True (Test-Path -LiteralPath $settingsPath -PathType Leaf) "install writes the session settings"
+  Assert-True (Test-Path -LiteralPath $isolatedClaudeConfigDir -PathType Container) "install creates the isolated Claude config directory"
+  Assert-Equal $normalClaudeSettingsBefore ([Convert]::ToBase64String([System.IO.File]::ReadAllBytes($normalClaudeSettingsPath))) "install preserves normal Claude settings"
   Assert-True (-not $installOutput.Contains($key)) "install output does not expose the credential"
   $settings = Get-Content -Raw -LiteralPath $settingsPath | ConvertFrom-Json
   Assert-Equal "algomim" ([string] $settings.model) "published install selects the Algomim model"
@@ -68,6 +87,15 @@ try {
   }
   $cliPath = Join-Path $algomimHome "bin\algomim.ps1"
   Assert-True (Test-Path -LiteralPath $cliPath -PathType Leaf) "install writes the Algomim CLI"
+
+  $env:CLAUDE_STUB_CAPTURE = $capturePath
+  & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $cliPath run claude -- --version *> $null
+  Assert-Equal "0" ([string] $LASTEXITCODE) "published CLI launches Claude successfully"
+  $capture = Get-Content -Raw -LiteralPath $capturePath
+  Assert-True ($capture.Contains("--settings")) "published CLI passes integration settings"
+  Assert-True ($capture.Contains("TOKEN=$key")) "published CLI injects the Algomim token"
+  Assert-True ($capture.Contains("CONFIG=$isolatedClaudeConfigDir")) "published CLI isolates Claude user state"
+  Assert-Equal $normalClaudeSettingsBefore ([Convert]::ToBase64String([System.IO.File]::ReadAllBytes($normalClaudeSettingsPath))) "published CLI leaves normal Claude settings unchanged"
 
   $manifestPath = Join-Path $testRoot "manifest.json"
   Invoke-WebRequest -Uri "https://github.com/algomim/release/releases/download/$Tag/manifest.json" -OutFile $manifestPath -UseBasicParsing
@@ -106,6 +134,7 @@ try {
   Assert-True (-not (Test-Path -LiteralPath $integrationHome)) "normal uninstall removes the integration"
   Assert-True (Test-Path -LiteralPath $credentialsPath -PathType Leaf) "normal uninstall preserves credentials"
   Assert-True (Test-Path -LiteralPath $cliPath -PathType Leaf) "normal uninstall preserves the CLI"
+  Assert-Equal $normalClaudeSettingsBefore ([Convert]::ToBase64String([System.IO.File]::ReadAllBytes($normalClaudeSettingsPath))) "normal uninstall preserves normal Claude settings"
 
   $reinstallOutput = (& $cliPath install claude --profile default *>&1 | Out-String)
   Assert-True (Test-Path -LiteralPath $settingsPath -PathType Leaf) "reinstall restores the session settings"
@@ -123,5 +152,7 @@ finally {
   if ($null -eq $savedAlgomimHome) { Remove-Item Env:ALGOMIM_HOME -ErrorAction SilentlyContinue } else { $env:ALGOMIM_HOME = $savedAlgomimHome }
   if ($null -eq $savedApiKey) { Remove-Item Env:ALGOMIM_API_KEY -ErrorAction SilentlyContinue } else { $env:ALGOMIM_API_KEY = $savedApiKey }
   if ($null -eq $savedProfile) { Remove-Item Env:ALGOMIM_PROFILE -ErrorAction SilentlyContinue } else { $env:ALGOMIM_PROFILE = $savedProfile }
+  if ($null -eq $savedClaudeConfigDir) { Remove-Item Env:CLAUDE_CONFIG_DIR -ErrorAction SilentlyContinue } else { $env:CLAUDE_CONFIG_DIR = $savedClaudeConfigDir }
+  if ($null -eq $savedStubCapture) { Remove-Item Env:CLAUDE_STUB_CAPTURE -ErrorAction SilentlyContinue } else { $env:CLAUDE_STUB_CAPTURE = $savedStubCapture }
   if (Test-Path -LiteralPath $testRoot) { Remove-Item -LiteralPath $testRoot -Recurse -Force }
 }

@@ -53,8 +53,8 @@ CLI_STATE="$ALGOMIM_HOME/cli/state.json"
 CREDENTIALS="$ALGOMIM_HOME/credentials"
 assert_file "$CLI" "installer must write the shell CLI"
 assert_file "$CLI_STATE" "installer must write CLI state"
-assert_equal "0.3.4" "$(json_field version "$CLI_STATE")" "CLI state must record the release version"
-assert_equal "v0.3.4" "$(json_field releaseTag "$CLI_STATE")" "CLI state must record the immutable tag"
+assert_equal "0.3.5" "$(json_field version "$CLI_STATE")" "CLI state must record the release version"
+assert_equal "v0.3.5" "$(json_field releaseTag "$CLI_STATE")" "CLI state must record the immutable tag"
 grep -F "$DEFAULT_KEY" "$CLI_STATE" >/dev/null 2>&1 && fail "CLI state must not contain credentials"
 
 START_COUNT=$(grep -c '^# >>> algomim cli >>>$' "$ALGOMIM_SHELL_PROFILE")
@@ -66,7 +66,7 @@ sh "$INSTALL" --credential-profile default >/dev/null 2>&1
 assert_equal "1" "$(grep -c '^# >>> algomim cli >>>$' "$ALGOMIM_SHELL_PROFILE")" "reinstall must not duplicate PATH"
 assert_equal "$INSTALLED_AT" "$(json_field installedAt "$CLI_STATE")" "reinstall must preserve install time"
 
-sh "$CLI" version | grep -F 'Algomim CLI 0.3.4 (v0.3.4)' >/dev/null || fail "version must report CLI version"
+sh "$CLI" version | grep -F 'Algomim CLI 0.3.5 (v0.3.5)' >/dev/null || fail "version must report CLI version"
 sh "$CLI" help | grep -F 'algomim doctor [codex|claude] [--offline]' >/dev/null || fail "help must list lifecycle commands"
 sh "$CLI" help | grep -F 'algomim run <codex|claude>' >/dev/null || fail "help must list the run command"
 LOGIN_OUTPUT=$(printf '%s\n' "$WORK_KEY" | sh "$CLI" login --profile work --api-key-stdin 2>&1)

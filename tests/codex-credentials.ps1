@@ -97,7 +97,7 @@ try {
   Assert-True (-not $codexArtifacts.Contains($defaultKey)) "Codex artifacts never embed the credential"
   $statePath = Join-Path $algomimHome "integrations\codex\state.json"
   $state = Get-Content -Raw -LiteralPath $statePath | ConvertFrom-Json
-  Assert-Equal "0.3.4" ([string] $state.version) "installer records its release version"
+  Assert-Equal "0.3.5" ([string] $state.version) "installer records its release version"
   Assert-Equal "default" ([string] $state.credentialProfile) "installer records the selected credential profile"
   Assert-True (-not (Get-Content -Raw -LiteralPath $statePath).Contains($defaultKey)) "installation state never contains the credential"
   foreach ($name in @("install.ps1", "update.ps1", "doctor.ps1", "uninstall.ps1", "release.json", "credential-store.ps1")) {

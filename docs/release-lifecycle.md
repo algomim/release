@@ -7,7 +7,7 @@ their public contract remains compatible.
 ## Version contract
 
 The Algomim CLI, Codex integration, and Claude Code integration use semantic
-versions such as `0.3.4` and immutable-by-policy Git tags such as `v0.3.4`.
+versions such as `0.3.5` and immutable-by-policy Git tags such as `v0.3.5`.
 Their source contracts are `cli/release.json`, `codex/release.json`, and
 `claude-code/release.json`. A release tag must match all three files exactly.
 
@@ -15,8 +15,8 @@ Customer installation instructions use a tag-pinned raw URL. They never run a
 mutable `main` installer:
 
 ```text
-https://raw.githubusercontent.com/algomim/release/v0.3.4/codex/install.ps1
-https://raw.githubusercontent.com/algomim/release/v0.3.4/claude-code/install.sh
+https://raw.githubusercontent.com/algomim/release/v0.3.5/codex/install.ps1
+https://raw.githubusercontent.com/algomim/release/v0.3.5/claude-code/install.sh
 ```
 
 Pushing a matching tag starts the release workflow. Windows, Ubuntu, and macOS
@@ -37,12 +37,12 @@ lifecycle tests must pass before the workflow publishes:
 ```text
 manifest.json
 SHA256SUMS
-algomim-codex-windows-v0.3.4.zip
-algomim-codex-posix-v0.3.4.tar.gz
-algomim-claude-code-windows-v0.3.4.zip
-algomim-claude-code-posix-v0.3.4.tar.gz
-algomim-cli-windows-v0.3.4.zip
-algomim-cli-posix-v0.3.4.tar.gz
+algomim-codex-windows-v0.3.5.zip
+algomim-codex-posix-v0.3.5.tar.gz
+algomim-claude-code-windows-v0.3.5.zip
+algomim-claude-code-posix-v0.3.5.tar.gz
+algomim-cli-windows-v0.3.5.zip
+algomim-cli-posix-v0.3.5.tar.gz
 ```
 
 Published tags and release assets must not be moved, replaced, or deleted. A
@@ -58,8 +58,9 @@ does not match, and the generated catalog is never edited manually.
 After a GitHub Release is published, the `Published release smoke` workflow
 downloads the immutable installer and artifacts on Windows, Ubuntu, and macOS.
 It exercises install, offline doctor, update check, checksum-verified forced
-update, CLI dispatch, uninstall, credential reuse, and explicit credential
-removal using isolated home directories.
+update, CLI dispatch, Claude config isolation, preservation of normal Claude
+settings, uninstall, credential reuse, and explicit credential removal using
+isolated home directories.
 
 The tag workflow explicitly dispatches this smoke after creating the release.
 Release events created with the workflow's `GITHUB_TOKEN` do not recursively
@@ -115,7 +116,8 @@ disabled, runs the staged offline doctor, and restores the previous integration
 on failure. The shared credential store and separately installed CLI remain
 outside that rollback boundary.
 
-Users upgrading from v0.3.3 can use `algomim update claude`. Users on an older
-release run the current tag-pinned installer once. The installer reuses the
-existing credential while refreshing both the active Claude Code integration
-and its CLI repair bundle.
+The v0.3.5 Claude Code integration requires the v0.3.5 Algomim CLI because the
+launcher owns `CLAUDE_CONFIG_DIR` isolation. Existing users run the current
+tag-pinned installer once; an integration-only update with an older CLI is
+rejected and rolled back. The installer reuses the existing credential while
+refreshing both the active integration and its CLI repair bundle.

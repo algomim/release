@@ -106,7 +106,9 @@ catch {
 }
 
 $settingsPath = Join-Path $integrationHome "settings.json"
+$claudeConfigDir = Join-Path $integrationHome "config"
 $credentialsPath = Join-Path $AlgomimHome "credentials"
+$minimumAlgomimCliVersion = $null
 
 if ($null -ne $state) {
   if ($state.schemaVersion -eq 1 -and $state.integration -eq "claude-code" -and ([string] $state.version) -match '^\d+\.\d+\.\d+$') {
@@ -121,6 +123,12 @@ if ($null -ne $state) {
     $releaseContract = Get-Content -Raw -LiteralPath $releaseContractPath | ConvertFrom-Json
     if ($releaseContract.integration -eq "claude-code" -and $releaseContract.version -eq $state.version) {
       Check-Ok "Installed release contract matches the recorded version."
+      if (([string] $releaseContract.minimumAlgomimCliVersion) -match '^\d+\.\d+\.\d+$') {
+        $minimumAlgomimCliVersion = [version] ([string] $releaseContract.minimumAlgomimCliVersion)
+      }
+      else {
+        Check-Fail "Installed release contract does not declare a valid minimum Algomim CLI version."
+      }
     }
     else {
       Check-Fail "Installed release contract does not match the recorded version."
@@ -134,6 +142,23 @@ if ($null -ne $state) {
     if (-not (Test-Path -LiteralPath (Join-Path $integrationHome $lifecycleFile) -PathType Leaf)) {
       Check-Fail "Installed lifecycle file is missing: $lifecycleFile"
     }
+  }
+}
+
+if ($null -ne $minimumAlgomimCliVersion) {
+  $cliStatePath = Join-Path $AlgomimHome "cli\state.json"
+  try {
+    $cliState = Get-Content -Raw -LiteralPath $cliStatePath | ConvertFrom-Json
+    $installedCliVersion = [version] ([string] $cliState.version)
+    if ($cliState.product -eq "algomim-cli" -and $installedCliVersion -ge $minimumAlgomimCliVersion) {
+      Check-Ok "Algomim CLI $installedCliVersion supports isolated Claude Code sessions."
+    }
+    else {
+      Check-Fail "Algomim CLI $minimumAlgomimCliVersion or newer is required. Run the current tag-pinned Claude Code installer once."
+    }
+  }
+  catch {
+    Check-Fail "Algomim CLI $minimumAlgomimCliVersion or newer is required. Run the current tag-pinned Claude Code installer once."
   }
 }
 
@@ -239,6 +264,25 @@ else {
   Check-Fail "Settings are missing: $settingsPath"
 }
 
+if (Test-Path -LiteralPath $claudeConfigDir) {
+  $configDirectory = Get-Item -LiteralPath $claudeConfigDir -Force
+  if (-not $configDirectory.PSIsContainer) {
+    Check-Fail "Isolated Claude Code config path is not a directory: $claudeConfigDir"
+  }
+  elseif ($configDirectory.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+    Check-Fail "Isolated Claude Code config directory must not be a symbolic link or reparse point: $claudeConfigDir"
+  }
+  elseif (-not (Test-CredentialFileAcl $claudeConfigDir)) {
+    Check-Fail "Isolated Claude Code config directory permissions are too broad: $claudeConfigDir"
+  }
+  else {
+    Check-Ok "Claude Code user state is isolated at $claudeConfigDir"
+  }
+}
+else {
+  Check-Fail "Isolated Claude Code config directory is missing: $claudeConfigDir"
+}
+
 $token = $null
 if (-not [string]::IsNullOrWhiteSpace($env:ALGOMIM_API_KEY)) {
   $token = $env:ALGOMIM_API_KEY.Trim()
@@ -275,24 +319,17 @@ else {
   Check-Fail "No credential is available through ALGOMIM_API_KEY or $credentialsPath"
 }
 
-$claudeConfigDir = if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { Join-Path $HOME ".claude" }
-$userSettingsPath = Join-Path $claudeConfigDir "settings.json"
-if (Test-Path -LiteralPath $userSettingsPath -PathType Leaf) {
+$normalClaudeConfigDir = if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { Join-Path $HOME ".claude" }
+$normalClaudeSettingsPath = Join-Path $normalClaudeConfigDir "settings.json"
+if (Test-Path -LiteralPath $normalClaudeSettingsPath -PathType Leaf) {
   try {
-    $userSettings = Get-Content -Raw -LiteralPath $userSettingsPath | ConvertFrom-Json
-    if ($null -ne $userSettings.env) {
-      foreach ($conflicting in @("ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL")) {
-        if (-not [string]::IsNullOrWhiteSpace([string] $userSettings.env.$conflicting)) {
-          Check-Warn "Your Claude Code settings ($userSettingsPath) set env.$conflicting. It can conflict with Algomim sessions."
-        }
-      }
-    }
-    if (@($userSettings.availableModels).Count -gt 0) {
-      Check-Warn "Your Claude Code settings ($userSettingsPath) define availableModels. Claude Code merges that list into Algomim sessions and can expose additional models."
+    $normalClaudeSettings = Get-Content -Raw -LiteralPath $normalClaudeSettingsPath | ConvertFrom-Json
+    if ([string] $normalClaudeSettings.model -eq "algomim") {
+      Check-Warn "Normal Claude settings still select algomim from an earlier session: $normalClaudeSettingsPath. Remove the top-level model field to restore Claude's own default."
     }
   }
   catch {
-    Check-Warn "Your Claude Code settings ($userSettingsPath) are not valid JSON. Claude Code may fail to start."
+    Check-Warn "Normal Claude settings are not valid JSON and were not modified: $normalClaudeSettingsPath"
   }
 }
 
