@@ -95,7 +95,7 @@ fi
 STATE_PATH="$ALGOMIM_HOME/integrations/codex/state.json"
 assert_file "$STATE_PATH" "installer must record integration state"
 STATE_VERSION=$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$STATE_PATH")
-assert_equal "0.3.2" "$STATE_VERSION" "installer must record its release version"
+assert_equal "0.3.3" "$STATE_VERSION" "installer must record its release version"
 grep -F "$DEFAULT_KEY" "$STATE_PATH" >/dev/null 2>&1 && fail "installation state must not contain credential"
 for name in install.sh update.sh doctor.sh uninstall.sh release.json credential-store.sh; do
   assert_file "$ALGOMIM_HOME/integrations/codex/$name" "installer must write lifecycle file $name"

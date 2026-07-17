@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "product": "algomim-cli",
-  "version": "0.3.2",
-  "releaseTag": "v0.3.2",
+  "version": "0.3.3",
+  "releaseTag": "v0.3.3",
   "repository": "algomim/release"
 }

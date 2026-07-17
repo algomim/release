@@ -146,25 +146,38 @@ BASE_URL=""
 if [ -f "$SETTINGS_PATH" ]; then
   ok "Settings exist: $SETTINGS_PATH"
 
-  if grep -q '"model"[[:space:]]*:[[:space:]]*"algomim"' "$SETTINGS_PATH"; then
-    ok "Settings select the algomim model."
+  if grep -q '"model"[[:space:]]*:[[:space:]]*"claude-algomim"' "$SETTINGS_PATH"; then
+    ok "Settings select the Claude transport model."
   else
-    fail "Settings do not select the algomim model."
+    fail "Settings do not select claude-algomim."
+  fi
+
+  if grep -q '"availableModels"[[:space:]]*:[[:space:]]*\[[[:space:]]*"claude-algomim"[[:space:]]*\]' "$SETTINGS_PATH"; then
+    ok "Settings expose only the Algomim model."
+  else
+    fail "Settings must allow only claude-algomim."
+  fi
+
+  if grep -q '"enforceAvailableModels"[[:space:]]*:[[:space:]]*true' "$SETTINGS_PATH"; then
+    ok "Settings keep Default inside the Algomim model allowlist."
+  else
+    fail "Settings must enforce the model allowlist for Default."
   fi
 
   for required_env in \
     ANTHROPIC_MODEL \
     ANTHROPIC_CUSTOM_MODEL_OPTION \
     CLAUDE_CODE_SUBAGENT_MODEL; do
-    if grep -q "\"$required_env\"[[:space:]]*:[[:space:]]*\"algomim\"" "$SETTINGS_PATH"; then
+    if grep -q "\"$required_env\"[[:space:]]*:[[:space:]]*\"claude-algomim\"" "$SETTINGS_PATH"; then
       ok "Settings set $required_env."
     else
-      fail "Settings do not set $required_env to algomim."
+      fail "Settings do not set $required_env to claude-algomim."
     fi
   done
   for expected_setting in \
     'ANTHROPIC_CUSTOM_MODEL_OPTION_NAME|Algomim' \
     'ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION|Algomim Model API' \
+    'CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY|0' \
     'CLAUDE_CODE_SUBPROCESS_ENV_SCRUB|1'; do
     setting_name=${expected_setting%%|*}
     setting_value=${expected_setting#*|}
@@ -250,6 +263,9 @@ if [ -f "$USER_SETTINGS_PATH" ]; then
       warn "Your Claude Code settings ($USER_SETTINGS_PATH) set env.$conflicting_env. It can conflict with Algomim sessions."
     fi
   done
+  if grep -q '"availableModels"[[:space:]]*:' "$USER_SETTINGS_PATH"; then
+    warn "Your Claude Code settings ($USER_SETTINGS_PATH) define availableModels. Claude Code merges that list into Algomim sessions and can expose additional models."
+  fi
 fi
 
 if [ "$SKIP_API_CHECK" = "1" ]; then

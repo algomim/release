@@ -156,20 +156,36 @@ if (Test-Path -LiteralPath $settingsPath) {
     $settings = Get-Content -Raw -LiteralPath $settingsPath | ConvertFrom-Json
     Check-Ok "Settings exist: $settingsPath"
 
-    if ($settings.model -eq "algomim") {
-      Check-Ok "Settings select the algomim model."
+    if ($settings.model -eq "claude-algomim") {
+      Check-Ok "Settings select the Claude transport model."
     }
     else {
-      Check-Fail "Settings do not select the algomim model."
+      Check-Fail "Settings do not select claude-algomim."
+    }
+
+    $availableModels = @($settings.availableModels)
+    if ($availableModels.Count -eq 1 -and $availableModels[0] -eq "claude-algomim") {
+      Check-Ok "Settings expose only the Algomim model."
+    }
+    else {
+      Check-Fail "Settings must allow only claude-algomim."
+    }
+
+    if ($settings.enforceAvailableModels -eq $true) {
+      Check-Ok "Settings keep Default inside the Algomim model allowlist."
+    }
+    else {
+      Check-Fail "Settings must enforce the model allowlist for Default."
     }
 
     if ($null -ne $settings.env) {
       foreach ($required in @(
-          @{ Name = "ANTHROPIC_MODEL"; Expected = "algomim" },
-          @{ Name = "ANTHROPIC_CUSTOM_MODEL_OPTION"; Expected = "algomim" },
+          @{ Name = "ANTHROPIC_MODEL"; Expected = "claude-algomim" },
+          @{ Name = "ANTHROPIC_CUSTOM_MODEL_OPTION"; Expected = "claude-algomim" },
           @{ Name = "ANTHROPIC_CUSTOM_MODEL_OPTION_NAME"; Expected = "Algomim" },
           @{ Name = "ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION"; Expected = "Algomim Model API" },
-          @{ Name = "CLAUDE_CODE_SUBAGENT_MODEL"; Expected = "algomim" },
+          @{ Name = "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY"; Expected = "0" },
+          @{ Name = "CLAUDE_CODE_SUBAGENT_MODEL"; Expected = "claude-algomim" },
           @{ Name = "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"; Expected = "1" }
         )) {
         $value = [string] $settings.env.($required.Name)
@@ -277,6 +293,9 @@ if (Test-Path -LiteralPath $userSettingsPath -PathType Leaf) {
           Check-Warn "Your Claude Code settings ($userSettingsPath) set env.$conflicting. It can conflict with Algomim sessions."
         }
       }
+    }
+    if (@($userSettings.availableModels).Count -gt 0) {
+      Check-Warn "Your Claude Code settings ($userSettingsPath) define availableModels. Claude Code merges that list into Algomim sessions and can expose additional models."
     }
   }
   catch {

@@ -52,22 +52,23 @@ assert_file "$SETTINGS_PATH" "installer must write the session settings"
 assert_file "$STATE_PATH" "installer must write the integration state"
 assert_file "$CLI" "installer must install the Algomim CLI"
 
-grep -q '"model"[[:space:]]*:[[:space:]]*"algomim"' "$SETTINGS_PATH" || fail "settings must select the algomim model"
+grep -q '"model"[[:space:]]*:[[:space:]]*"claude-algomim"' "$SETTINGS_PATH" || fail "settings must select the Claude transport model"
+grep -q '"availableModels"[[:space:]]*:[[:space:]]*\[[[:space:]]*"claude-algomim"[[:space:]]*\]' "$SETTINGS_PATH" || fail "settings must allow only the Claude transport model"
+grep -q '"enforceAvailableModels"[[:space:]]*:[[:space:]]*true' "$SETTINGS_PATH" || fail "settings must enforce the allowlist for Default"
 assert_equal "https://pilot.example.com" "$(json_field ANTHROPIC_BASE_URL "$SETTINGS_PATH")" "settings must record the service-root base URL"
-assert_equal "algomim" "$(json_field ANTHROPIC_MODEL "$SETTINGS_PATH")" "settings must select algomim for the main session"
-assert_equal "algomim" "$(json_field ANTHROPIC_CUSTOM_MODEL_OPTION "$SETTINGS_PATH")" "settings must add the Algomim custom model option"
+assert_equal "claude-algomim" "$(json_field ANTHROPIC_MODEL "$SETTINGS_PATH")" "settings must select the Claude transport model for the main session"
+assert_equal "claude-algomim" "$(json_field ANTHROPIC_CUSTOM_MODEL_OPTION "$SETTINGS_PATH")" "settings must add the Algomim custom model option"
 assert_equal "Algomim" "$(json_field ANTHROPIC_CUSTOM_MODEL_OPTION_NAME "$SETTINGS_PATH")" "settings must label the custom model option"
 assert_equal "Algomim Model API" "$(json_field ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION "$SETTINGS_PATH")" "settings must describe the custom model option"
-assert_equal "algomim" "$(json_field CLAUDE_CODE_SUBAGENT_MODEL "$SETTINGS_PATH")" "settings must redirect subagents"
+assert_equal "0" "$(json_field CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY "$SETTINGS_PATH")" "settings must disable gateway model discovery"
+assert_equal "claude-algomim" "$(json_field CLAUDE_CODE_SUBAGENT_MODEL "$SETTINGS_PATH")" "settings must redirect subagents"
 assert_equal "1" "$(json_field CLAUDE_CODE_SUBPROCESS_ENV_SCRUB "$SETTINGS_PATH")" "settings must scrub the credential from child processes"
-! grep -q '"availableModels"' "$SETTINGS_PATH" || fail "settings must not add an availableModels allowlist"
-! grep -q '"enforceAvailableModels"' "$SETTINGS_PATH" || fail "settings must not enforce an availableModels allowlist"
 for family_pin in ANTHROPIC_DEFAULT_HAIKU_MODEL ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_FABLE_MODEL; do
   ! grep -q "\"$family_pin\"" "$SETTINGS_PATH" || fail "settings must not define $family_pin"
 done
 grep -F "$KEY" "$SETTINGS_PATH" >/dev/null 2>&1 && fail "settings must not contain the API key"
 assert_equal "claude-code" "$(json_field integration "$STATE_PATH")" "state must record the integration id"
-assert_equal "0.3.2" "$(json_field version "$STATE_PATH")" "state must record the release version"
+assert_equal "0.3.3" "$(json_field version "$STATE_PATH")" "state must record the release version"
 assert_equal "https://pilot.example.com" "$(json_field baseUrl "$STATE_PATH")" "state must record the service-root base URL"
 
 [ ! -e "$CLAUDE_CONFIG_DIR" ] || fail "install must never create the Claude Code config directory"
@@ -75,9 +76,10 @@ assert_equal "https://pilot.example.com" "$(json_field baseUrl "$STATE_PATH")" "
 sh "$CLI" doctor claude --offline >/dev/null || fail "doctor claude --offline must pass after install"
 
 mkdir -p "$CLAUDE_CONFIG_DIR"
-printf '{"env":{"ANTHROPIC_BASE_URL":"https://user.example.com"}}\n' > "$CLAUDE_CONFIG_DIR/settings.json"
+printf '{"availableModels":["opus"],"env":{"ANTHROPIC_BASE_URL":"https://user.example.com"}}\n' > "$CLAUDE_CONFIG_DIR/settings.json"
 CONFLICT_OUTPUT=$(sh "$CLI" doctor claude --offline 2>&1) || fail "conflicting user settings must warn without failing"
 case "$CONFLICT_OUTPUT" in *"can conflict"*) ;; *) fail "doctor must warn about conflicting user settings" ;; esac
+case "$CONFLICT_OUTPUT" in *"can expose additional models"*) ;; *) fail "doctor must warn about a merged user model allowlist" ;; esac
 rm -rf "$CLAUDE_CONFIG_DIR"
 
 CLAUDE_STUB_CAPTURE="$CAPTURE"

@@ -64,10 +64,19 @@ algomim run claude -- --resume
 Normal `claude` (without the Algomim CLI) keeps using your own Anthropic
 account. Both can be used side by side in different terminals.
 
-Inside an Algomim session, `/model` lists `Algomim` as a custom model option.
-Claude Code's built-in Anthropic entries, including `Default`, remain visible;
-do not switch to one from an Algomim session. Exit and start plain `claude`
-instead.
+With the normal Claude configuration (no separate `availableModels` policy),
+an Algomim session's `/model` picker shows `Algomim` as its only named model.
+Claude Code's `Default` entry cannot be removed, so the session settings keep
+it inside the same allowlist; it resolves to Algomim as well. Opus, Sonnet,
+Haiku, and Fable are hidden and cannot be selected. Plain `claude` remains
+unaffected and continues to use your own Anthropic account.
+
+Claude Code merges non-managed `availableModels` arrays across command, user,
+project, and local settings. If you deliberately define another allowlist in
+one of those scopes, its models can also appear in the Algomim session; remove
+that setting for the isolated picker. `algomim doctor claude` warns when it
+finds this conflict in the user settings file. An administrator's managed
+policy always takes precedence.
 
 ## Doctor
 
@@ -94,10 +103,11 @@ Updates download the published release archive, verify its SHA-256 checksum
 against the release manifest, stage the new files, run an offline doctor, and
 restore the previous installation exactly if anything fails.
 
-If you installed v0.3.1, run the v0.3.2 tag-pinned installer once instead of
-relying only on `algomim update claude`. The integration updater deliberately
-owns only the active Claude Code installation; the pinned installer also
-refreshes the separately installed CLI and its bundled repair files.
+If you installed v0.3.2, `algomim update claude` installs this change. If you
+are still on v0.3.1, run the v0.3.3 tag-pinned installer once: the integration
+updater deliberately owns only the active Claude Code installation, while the
+pinned installer also refreshes the separately installed CLI and its bundled
+repair files.
 
 ## Uninstall
 
@@ -126,16 +136,21 @@ stored API key exported as `ANTHROPIC_AUTH_TOKEN` for that process only. The
 settings file routes the session to Algomim:
 
 - `ANTHROPIC_BASE_URL` — the Algomim Model API service root
-- `model` / `ANTHROPIC_MODEL` — `algomim` for the main session
-- `ANTHROPIC_CUSTOM_MODEL_OPTION` — adds `algomim` to `/model`, with the
+- `model` / `ANTHROPIC_MODEL` — `claude-algomim` for the Claude transport
+- `availableModels` — allows only the named `claude-algomim` transport model
+- `enforceAvailableModels=true` — keeps Claude Code's unavoidable `Default`
+  entry inside the same one-model allowlist
+- `ANTHROPIC_CUSTOM_MODEL_OPTION` — adds that transport model to `/model`, with the
   `_NAME` and `_DESCRIPTION` companions setting its Algomim label and summary
-- `CLAUDE_CODE_SUBAGENT_MODEL` — `algomim` for subagents
+- `CLAUDE_CODE_SUBAGENT_MODEL` — `claude-algomim` for subagents
 - `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` — keeps the bearer token out of tool,
   hook, and stdio MCP child processes
 
-The integration does not set any `ANTHROPIC_DEFAULT_*_MODEL` family override.
-Algomim is exposed in the picker only through the custom model option, leaving
-Claude Code's built-in model families unchanged.
+`claude-algomim` is a Claude Code wire-compatibility identifier, not a second
+Algomim product model. The Model API's Messages adapter normalizes it to the
+canonical `algomim` model before authorization, quota, usage, and inference.
+No `ANTHROPIC_DEFAULT_*_MODEL` family override is used, so Algomim is never
+presented as a custom Haiku, Sonnet, Opus, or Fable model.
 
 Token counting endpoints are not provided; Claude Code falls back to its local
 context estimate, which is expected and harmless.
@@ -152,6 +167,7 @@ context estimate, which is expected and harmless.
 | `429` | Token quota exhausted | Ask for a quota extension |
 | Session uses your Anthropic account instead of Algomim | Plain `claude` was started instead of `algomim run claude` | Start with `algomim run claude` |
 | `[warn] ... env.ANTHROPIC_BASE_URL` from doctor | Your `~/.claude/settings.json` sets conflicting env values | Remove them or accept that they may fight Algomim sessions |
+| `[warn] ... define availableModels` from doctor | Claude Code will merge your user allowlist into the Algomim picker | Remove that user setting for an Algomim-only picker |
 
 ## Security
 
@@ -164,10 +180,19 @@ context estimate, which is expected and harmless.
 
 ## Official Claude Code behavior used here
 
-- `--settings <file>` overrides user settings for a single session.
+- `--settings <file>` supplies the highest non-managed scalar settings for one
+  session; array settings such as `availableModels` merge across non-managed
+  scopes.
 - `env` in a settings file applies to the session and its subprocesses.
 - `ANTHROPIC_AUTH_TOKEN` sends `Authorization: Bearer` and takes precedence
   over a saved login while set.
 - `ANTHROPIC_CUSTOM_MODEL_OPTION` adds a custom `/model` entry; its `_NAME` and
   `_DESCRIPTION` companions control the picker label and description.
+- `availableModels` restricts named picker entries. The supported Claude Code
+  runtime is verified to keep `Default` inside this session's allowlist when
+  `enforceAvailableModels` is enabled and no other non-managed allowlist is
+  present. Anthropic reserves organization-wide policy enforcement for managed
+  settings.
+- Gateway model discovery is explicitly disabled so `/v1/models` does not add
+  a second picker entry.
 - `CLAUDE_CODE_SUBAGENT_MODEL` redirects subagent and agent-team requests.

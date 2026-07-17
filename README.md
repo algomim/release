@@ -34,13 +34,13 @@ release repository. See
 Windows PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/algomim/release/v0.3.2/codex/install.ps1 | iex
+irm https://raw.githubusercontent.com/algomim/release/v0.3.3/codex/install.ps1 | iex
 ```
 
 macOS/Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.3.2/codex/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.3.3/codex/install.sh | sh
 ```
 
 The installer asks for the Algomim API key without echoing it, installs the
@@ -60,13 +60,13 @@ Plain `codex` keeps using the user's existing OpenAI configuration.
 Windows PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/algomim/release/v0.3.2/claude-code/install.ps1 | iex
+irm https://raw.githubusercontent.com/algomim/release/v0.3.3/claude-code/install.ps1 | iex
 ```
 
 macOS/Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.3.2/claude-code/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.3.3/claude-code/install.sh | sh
 ```
 
 The installer does not edit `~/.claude`; plain `claude` keeps using the user's
@@ -76,8 +76,9 @@ own Anthropic account. Start Claude Code against Algomim with:
 algomim run claude
 ```
 
-Existing v0.3.1 Claude Code users should run the v0.3.2 installer above once;
-this refreshes both the active integration and the CLI's bundled repair files.
+Existing v0.3.2 Claude Code users can run `algomim update claude`. Users still
+on v0.3.1 should run the v0.3.3 installer above once so both the active
+integration and the CLI's bundled repair files are refreshed.
 
 ## The algomim CLI
 
@@ -120,6 +121,6 @@ hand-authored model metadata.
 - Keep API keys in the shared Algomim credential store, never in a
   client-owned directory.
 - Prefer versioned release URLs for customer-facing instructions once a release
-  is cut, for example `/v0.3.2/codex/install.ps1`.
+  is cut, for example `/v0.3.3/codex/install.ps1`.
 - Never move an existing release tag or replace published release assets; ship
   a new semantic version instead.

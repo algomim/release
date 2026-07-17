@@ -17,17 +17,17 @@ function Write-JsonFile {
 }
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$baselineVersion = "0.3.1"
+$baselineVersion = "0.3.2"
 $baselineTag = "v$baselineVersion"
-$baselineRevision = "c3b3a6b9ae694eb5d346df0092a285964c0444b3"
-$candidateVersion = "0.3.2"
+$baselineRevision = "d29ccb3d689e0b614f60224bc43624822382e7e9"
+$candidateVersion = "0.3.3"
 $candidateTag = "v$candidateVersion"
 $invalidVersion = if ($candidateVersion -ceq "9999.9999.9999") { "9999.9999.9998" } else { "9999.9999.9999" }
 $invalidTag = "v$invalidVersion"
 
 $testRoot = Join-Path $repoRoot (".claude-update-test-{0}" -f [Guid]::NewGuid().ToString("N"))
 $artifacts = Join-Path $testRoot "artifacts"
-$baselineArchive = Join-Path $testRoot "claude-v0.3.1.zip"
+$baselineArchive = Join-Path $testRoot "claude-v0.3.2.zip"
 $baselineSource = Join-Path $testRoot "baseline"
 $candidateStage = Join-Path $testRoot "candidate"
 $algomimHome = Join-Path $testRoot "algomim"
@@ -56,7 +56,7 @@ exit /b 0
   }
   Expand-Archive -LiteralPath $baselineArchive -DestinationPath $baselineSource
   $baselineContract = Get-Content -Raw -LiteralPath (Join-Path $baselineSource "claude-code\release.json") | ConvertFrom-Json
-  Assert-Equal $baselineVersion ([string] $baselineContract.version) "baseline contract records v0.3.1"
+  Assert-Equal $baselineVersion ([string] $baselineContract.version) "baseline contract records v0.3.2"
   Assert-Equal $baselineTag ([string] $baselineContract.releaseTag) "baseline contract matches the immutable tag"
 
   & (Join-Path $baselineSource "claude-code\install.ps1") `
@@ -72,7 +72,7 @@ exit /b 0
 
   $baselineState = Get-Content -Raw -LiteralPath $statePath | ConvertFrom-Json
   $baselineCredential = Get-Content -Raw -LiteralPath $credentialsPath
-  Assert-Equal $baselineVersion ([string] $baselineState.version) "test starts from immutable v0.3.1"
+  Assert-Equal $baselineVersion ([string] $baselineState.version) "test starts from immutable v0.3.2"
   Assert-Equal $baselineTag ([string] $baselineState.releaseTag) "baseline state records the immutable tag"
   Assert-Equal "https://api.algomim.com" ([string] $baselineState.baseUrl) "baseline records the service-root base URL"
 
@@ -109,21 +109,23 @@ exit /b 0
       -ArtifactBaseUrl $artifacts *>&1 | Out-String)
   $updatedState = Get-Content -Raw -LiteralPath $statePath | ConvertFrom-Json
   $updatedSettings = Get-Content -Raw -LiteralPath $settingsPath | ConvertFrom-Json
-  Assert-Equal $candidateVersion ([string] $updatedState.version) "v0.3.1 updater installs candidate v0.3.2"
+  Assert-Equal $candidateVersion ([string] $updatedState.version) "v0.3.2 updater installs candidate v0.3.3"
   Assert-Equal $candidateTag ([string] $updatedState.releaseTag) "updated state records the candidate tag"
   Assert-Equal ([string] $baselineState.installedAt) ([string] $updatedState.installedAt) "update preserves installation timestamp"
   Assert-Equal $baselineCredential (Get-Content -Raw -LiteralPath $credentialsPath) "update preserves the exact credential store"
   Assert-True (-not $updateOutput.Contains($key)) "update output never exposes the credential"
-  Assert-Equal "algomim" ([string] $updatedSettings.model) "updated settings select the algomim model"
+  Assert-Equal "claude-algomim" ([string] $updatedSettings.model) "updated settings select the Claude transport model"
+  Assert-Equal "1" ([string] @($updatedSettings.availableModels).Count) "updated settings expose one named model"
+  Assert-Equal "claude-algomim" ([string] @($updatedSettings.availableModels)[0]) "updated settings allow only the Claude transport model"
+  Assert-True ($updatedSettings.enforceAvailableModels -eq $true) "updated settings enforce the allowlist for Default"
   Assert-Equal "https://api.algomim.com" ([string] $updatedSettings.env.ANTHROPIC_BASE_URL) "updated settings preserve the service-root base URL"
-  Assert-Equal "algomim" ([string] $updatedSettings.env.ANTHROPIC_MODEL) "updated settings select algomim for the main session"
-  Assert-Equal "algomim" ([string] $updatedSettings.env.ANTHROPIC_CUSTOM_MODEL_OPTION) "updated settings add the Algomim custom model option"
+  Assert-Equal "claude-algomim" ([string] $updatedSettings.env.ANTHROPIC_MODEL) "updated settings select the Claude transport model for the main session"
+  Assert-Equal "claude-algomim" ([string] $updatedSettings.env.ANTHROPIC_CUSTOM_MODEL_OPTION) "updated settings add the Algomim custom model option"
   Assert-Equal "Algomim" ([string] $updatedSettings.env.ANTHROPIC_CUSTOM_MODEL_OPTION_NAME) "updated settings label the custom model option"
   Assert-Equal "Algomim Model API" ([string] $updatedSettings.env.ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION) "updated settings describe the custom model option"
-  Assert-Equal "algomim" ([string] $updatedSettings.env.CLAUDE_CODE_SUBAGENT_MODEL) "updated settings redirect subagents"
+  Assert-Equal "0" ([string] $updatedSettings.env.CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY) "updated settings disable gateway model discovery"
+  Assert-Equal "claude-algomim" ([string] $updatedSettings.env.CLAUDE_CODE_SUBAGENT_MODEL) "updated settings redirect subagents"
   Assert-Equal "1" ([string] $updatedSettings.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB) "updated settings scrub the credential from child processes"
-  Assert-True ($null -eq $updatedSettings.PSObject.Properties["availableModels"]) "updated settings do not add an availableModels allowlist"
-  Assert-True ($null -eq $updatedSettings.PSObject.Properties["enforceAvailableModels"]) "updated settings do not enforce an availableModels allowlist"
   foreach ($familyPin in @("ANTHROPIC_DEFAULT_HAIKU_MODEL", "ANTHROPIC_DEFAULT_OPUS_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL", "ANTHROPIC_DEFAULT_FABLE_MODEL")) {
     Assert-True ($null -eq $updatedSettings.env.PSObject.Properties[$familyPin]) "updated settings do not define $familyPin"
   }
