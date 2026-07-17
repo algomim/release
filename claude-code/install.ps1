@@ -2,7 +2,7 @@ param(
   [string] $BaseUrl = "",
   [string] $ApiKey = "",
   [string] $ReleaseRef = "",
-  [string] $ReleaseVersion = "0.3.3",
+  [string] $ReleaseVersion = "0.3.4",
   [string] $CredentialProfile = "",
   [string] $AlgomimHome = "",
   [switch] $SkipKey,
@@ -324,17 +324,16 @@ if (-not $hasEnvironmentCredential -and $null -eq $storedApiKey) {
 $baseUrlJson = Escape-JsonString $BaseUrl
 $settings = @"
 {
-  "model": "claude-algomim",
-  "availableModels": ["claude-algomim"],
-  "enforceAvailableModels": true,
+  "model": "algomim",
+  "availableModels": ["algomim"],
   "env": {
     "ANTHROPIC_BASE_URL": "$baseUrlJson",
-    "ANTHROPIC_MODEL": "claude-algomim",
-    "ANTHROPIC_CUSTOM_MODEL_OPTION": "claude-algomim",
+    "ANTHROPIC_MODEL": "algomim",
+    "ANTHROPIC_CUSTOM_MODEL_OPTION": "algomim",
     "ANTHROPIC_CUSTOM_MODEL_OPTION_NAME": "Algomim",
     "ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION": "Algomim Model API",
     "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY": "0",
-    "CLAUDE_CODE_SUBAGENT_MODEL": "claude-algomim",
+    "CLAUDE_CODE_SUBAGENT_MODEL": "algomim",
     "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1"
   }
 }

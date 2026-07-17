@@ -146,32 +146,26 @@ BASE_URL=""
 if [ -f "$SETTINGS_PATH" ]; then
   ok "Settings exist: $SETTINGS_PATH"
 
-  if grep -q '"model"[[:space:]]*:[[:space:]]*"claude-algomim"' "$SETTINGS_PATH"; then
-    ok "Settings select the Claude transport model."
+  if grep -q '"model"[[:space:]]*:[[:space:]]*"algomim"' "$SETTINGS_PATH"; then
+    ok "Settings select the Algomim model."
   else
-    fail "Settings do not select claude-algomim."
+    fail "Settings do not select algomim."
   fi
 
-  if grep -q '"availableModels"[[:space:]]*:[[:space:]]*\[[[:space:]]*"claude-algomim"[[:space:]]*\]' "$SETTINGS_PATH"; then
+  if grep -q '"availableModels"[[:space:]]*:[[:space:]]*\[[[:space:]]*"algomim"[[:space:]]*\]' "$SETTINGS_PATH"; then
     ok "Settings expose only the Algomim model."
   else
-    fail "Settings must allow only claude-algomim."
-  fi
-
-  if grep -q '"enforceAvailableModels"[[:space:]]*:[[:space:]]*true' "$SETTINGS_PATH"; then
-    ok "Settings keep Default inside the Algomim model allowlist."
-  else
-    fail "Settings must enforce the model allowlist for Default."
+    fail "Settings must allow only algomim."
   fi
 
   for required_env in \
     ANTHROPIC_MODEL \
     ANTHROPIC_CUSTOM_MODEL_OPTION \
     CLAUDE_CODE_SUBAGENT_MODEL; do
-    if grep -q "\"$required_env\"[[:space:]]*:[[:space:]]*\"claude-algomim\"" "$SETTINGS_PATH"; then
+    if grep -q "\"$required_env\"[[:space:]]*:[[:space:]]*\"algomim\"" "$SETTINGS_PATH"; then
       ok "Settings set $required_env."
     else
-      fail "Settings do not set $required_env to claude-algomim."
+      fail "Settings do not set $required_env to algomim."
     fi
   done
   for expected_setting in \

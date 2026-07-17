@@ -66,10 +66,10 @@ account. Both can be used side by side in different terminals.
 
 With the normal Claude configuration (no separate `availableModels` policy),
 an Algomim session's `/model` picker shows `Algomim` as its only named model.
-Claude Code's `Default` entry cannot be removed, so the session settings keep
-it inside the same allowlist; it resolves to Algomim as well. Opus, Sonnet,
-Haiku, and Fable are hidden and cannot be selected. Plain `claude` remains
-unaffected and continues to use your own Anthropic account.
+Claude Code retains its own `Default` entry; this integration neither removes
+nor remaps that client-owned choice. Opus, Sonnet, Haiku, and Fable are hidden
+from the named model list. Plain `claude` remains unaffected and continues to
+use your own Anthropic account.
 
 Claude Code merges non-managed `availableModels` arrays across command, user,
 project, and local settings. If you deliberately define another allowlist in
@@ -103,11 +103,11 @@ Updates download the published release archive, verify its SHA-256 checksum
 against the release manifest, stage the new files, run an offline doctor, and
 restore the previous installation exactly if anything fails.
 
-If you installed v0.3.2, `algomim update claude` installs this change. If you
-are still on v0.3.1, run the v0.3.3 tag-pinned installer once: the integration
-updater deliberately owns only the active Claude Code installation, while the
-pinned installer also refreshes the separately installed CLI and its bundled
-repair files.
+If you installed v0.3.3, `algomim update claude` installs this change. If you
+are on an older release, run the v0.3.4 tag-pinned installer once: the
+integration updater deliberately owns only the active Claude Code installation,
+while the pinned installer also refreshes the separately installed CLI and its
+bundled repair files.
 
 ## Uninstall
 
@@ -136,19 +136,16 @@ stored API key exported as `ANTHROPIC_AUTH_TOKEN` for that process only. The
 settings file routes the session to Algomim:
 
 - `ANTHROPIC_BASE_URL` — the Algomim Model API service root
-- `model` / `ANTHROPIC_MODEL` — `claude-algomim` for the Claude transport
-- `availableModels` — allows only the named `claude-algomim` transport model
-- `enforceAvailableModels=true` — keeps Claude Code's unavoidable `Default`
-  entry inside the same one-model allowlist
-- `ANTHROPIC_CUSTOM_MODEL_OPTION` — adds that transport model to `/model`, with the
+- `model` / `ANTHROPIC_MODEL` — `algomim` for the main session
+- `availableModels` — allows only the named `algomim` model
+- `ANTHROPIC_CUSTOM_MODEL_OPTION` — adds `algomim` to `/model`, with the
   `_NAME` and `_DESCRIPTION` companions setting its Algomim label and summary
-- `CLAUDE_CODE_SUBAGENT_MODEL` — `claude-algomim` for subagents
+- `CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=0` — prevents `/v1/models` from
+  adding a second picker entry
+- `CLAUDE_CODE_SUBAGENT_MODEL` — `algomim` for subagents
 - `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` — keeps the bearer token out of tool,
   hook, and stdio MCP child processes
 
-`claude-algomim` is a Claude Code wire-compatibility identifier, not a second
-Algomim product model. The Model API's Messages adapter normalizes it to the
-canonical `algomim` model before authorization, quota, usage, and inference.
 No `ANTHROPIC_DEFAULT_*_MODEL` family override is used, so Algomim is never
 presented as a custom Haiku, Sonnet, Opus, or Fable model.
 
@@ -188,11 +185,8 @@ context estimate, which is expected and harmless.
   over a saved login while set.
 - `ANTHROPIC_CUSTOM_MODEL_OPTION` adds a custom `/model` entry; its `_NAME` and
   `_DESCRIPTION` companions control the picker label and description.
-- `availableModels` restricts named picker entries. The supported Claude Code
-  runtime is verified to keep `Default` inside this session's allowlist when
-  `enforceAvailableModels` is enabled and no other non-managed allowlist is
-  present. Anthropic reserves organization-wide policy enforcement for managed
-  settings.
+- `availableModels` restricts named picker entries but does not remove Claude
+  Code's client-owned `Default` entry.
 - Gateway model discovery is explicitly disabled so `/v1/models` does not add
   a second picker entry.
 - `CLAUDE_CODE_SUBAGENT_MODEL` redirects subagent and agent-team requests.

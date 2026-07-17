@@ -5,7 +5,7 @@ BASE_URL=""
 API_KEY=""
 API_KEY_WAS_EXPLICIT="0"
 RELEASE_REF=""
-RELEASE_VERSION="0.3.3"
+RELEASE_VERSION="0.3.4"
 CREDENTIAL_PROFILE="${ALGOMIM_PROFILE:-default}"
 SKIP_KEY="0"
 SKIP_CLI_INSTALL="0"
@@ -268,17 +268,16 @@ BASE_URL_JSON=$(json_escape "$BASE_URL")
 GENERATED_SETTINGS=$(mktemp)
 cat > "$GENERATED_SETTINGS" <<EOF
 {
-  "model": "claude-algomim",
-  "availableModels": ["claude-algomim"],
-  "enforceAvailableModels": true,
+  "model": "algomim",
+  "availableModels": ["algomim"],
   "env": {
     "ANTHROPIC_BASE_URL": "$BASE_URL_JSON",
-    "ANTHROPIC_MODEL": "claude-algomim",
-    "ANTHROPIC_CUSTOM_MODEL_OPTION": "claude-algomim",
+    "ANTHROPIC_MODEL": "algomim",
+    "ANTHROPIC_CUSTOM_MODEL_OPTION": "algomim",
     "ANTHROPIC_CUSTOM_MODEL_OPTION_NAME": "Algomim",
     "ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION": "Algomim Model API",
     "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY": "0",
-    "CLAUDE_CODE_SUBAGENT_MODEL": "claude-algomim",
+    "CLAUDE_CODE_SUBAGENT_MODEL": "algomim",
     "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1"
   }
 }

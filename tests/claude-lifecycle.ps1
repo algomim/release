@@ -55,17 +55,16 @@ exit /b 0
   Assert-True (Test-Path -LiteralPath $cli -PathType Leaf) "installer installs the Algomim CLI"
 
   $settings = Get-Content -Raw -LiteralPath $settingsPath | ConvertFrom-Json
-  Assert-Equal "claude-algomim" ([string] $settings.model) "settings select the Claude transport model"
+  Assert-Equal "algomim" ([string] $settings.model) "settings select the Algomim model"
   Assert-Equal "1" ([string] @($settings.availableModels).Count) "settings expose one named model"
-  Assert-Equal "claude-algomim" ([string] @($settings.availableModels)[0]) "settings allow only the Claude transport model"
-  Assert-True ($settings.enforceAvailableModels -eq $true) "settings enforce the allowlist for Default"
+  Assert-Equal "algomim" ([string] @($settings.availableModels)[0]) "settings allow only the Algomim model"
   Assert-Equal "https://pilot.example.com" ([string] $settings.env.ANTHROPIC_BASE_URL) "settings record the service-root base URL"
-  Assert-Equal "claude-algomim" ([string] $settings.env.ANTHROPIC_MODEL) "settings select the Claude transport model for the main session"
-  Assert-Equal "claude-algomim" ([string] $settings.env.ANTHROPIC_CUSTOM_MODEL_OPTION) "settings add the Algomim custom model option"
+  Assert-Equal "algomim" ([string] $settings.env.ANTHROPIC_MODEL) "settings select the Algomim model for the main session"
+  Assert-Equal "algomim" ([string] $settings.env.ANTHROPIC_CUSTOM_MODEL_OPTION) "settings add the Algomim custom model option"
   Assert-Equal "Algomim" ([string] $settings.env.ANTHROPIC_CUSTOM_MODEL_OPTION_NAME) "settings label the custom model option"
   Assert-Equal "Algomim Model API" ([string] $settings.env.ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION) "settings describe the custom model option"
   Assert-Equal "0" ([string] $settings.env.CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY) "settings disable gateway model discovery"
-  Assert-Equal "claude-algomim" ([string] $settings.env.CLAUDE_CODE_SUBAGENT_MODEL) "settings redirect subagents"
+  Assert-Equal "algomim" ([string] $settings.env.CLAUDE_CODE_SUBAGENT_MODEL) "settings redirect subagents"
   Assert-Equal "1" ([string] $settings.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB) "settings scrub the credential from child processes"
   foreach ($familyPin in @("ANTHROPIC_DEFAULT_HAIKU_MODEL", "ANTHROPIC_DEFAULT_OPUS_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL", "ANTHROPIC_DEFAULT_FABLE_MODEL")) {
     Assert-True ($null -eq $settings.env.PSObject.Properties[$familyPin]) "settings do not define $familyPin"
@@ -74,7 +73,7 @@ exit /b 0
 
   $state = Get-Content -Raw -LiteralPath $statePath | ConvertFrom-Json
   Assert-Equal "claude-code" ([string] $state.integration) "state records the integration id"
-  Assert-Equal "0.3.3" ([string] $state.version) "state records the release version"
+  Assert-Equal "0.3.4" ([string] $state.version) "state records the release version"
   Assert-Equal "https://pilot.example.com" ([string] $state.baseUrl) "state records the service-root base URL"
 
   Assert-True (-not (Test-Path -LiteralPath $claudeConfigDir)) "install never creates or touches the Claude Code config directory"
