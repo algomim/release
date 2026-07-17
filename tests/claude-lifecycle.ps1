@@ -18,6 +18,9 @@ $savedApiKey = $env:ALGOMIM_API_KEY
 $savedProfile = $env:ALGOMIM_PROFILE
 $savedClaudeConfigDir = $env:CLAUDE_CONFIG_DIR
 $savedStubCapture = $env:CLAUDE_STUB_CAPTURE
+$savedDefaultOpusModel = $env:ANTHROPIC_DEFAULT_OPUS_MODEL
+$savedDefaultOpusModelName = $env:ANTHROPIC_DEFAULT_OPUS_MODEL_NAME
+$savedCustomModelOption = $env:ANTHROPIC_CUSTOM_MODEL_OPTION
 $savedPath = $env:PATH
 
 try {
@@ -37,6 +40,9 @@ if "%~1"=="--version" exit /b 0
 echo ARGS=%*> "%CLAUDE_STUB_CAPTURE%"
 echo TOKEN=%ANTHROPIC_AUTH_TOKEN%>> "%CLAUDE_STUB_CAPTURE%"
 echo CONFIG=%CLAUDE_CONFIG_DIR%>> "%CLAUDE_STUB_CAPTURE%"
+echo FAMILY_MODEL=%ANTHROPIC_DEFAULT_OPUS_MODEL%>> "%CLAUDE_STUB_CAPTURE%"
+echo FAMILY_NAME=%ANTHROPIC_DEFAULT_OPUS_MODEL_NAME%>> "%CLAUDE_STUB_CAPTURE%"
+echo CUSTOM_MODEL=%ANTHROPIC_CUSTOM_MODEL_OPTION%>> "%CLAUDE_STUB_CAPTURE%"
 exit /b 0
 "@
   $env:ALGOMIM_HOME = $algomimHome
@@ -44,6 +50,9 @@ exit /b 0
   $env:PATH = "$fakeBin;$savedPath"
   Remove-Item Env:ALGOMIM_API_KEY -ErrorAction SilentlyContinue
   Remove-Item Env:ALGOMIM_PROFILE -ErrorAction SilentlyContinue
+  $env:ANTHROPIC_DEFAULT_OPUS_MODEL = "user-opus-model"
+  $env:ANTHROPIC_DEFAULT_OPUS_MODEL_NAME = "User Opus"
+  $env:ANTHROPIC_CUSTOM_MODEL_OPTION = "user-custom-model"
 
   $key = "sk-claude-lifecycle-000000"
   $installOutput = (& $installer -ApiKey $key -CredentialProfile default -BaseUrl "https://pilot.example.com" -CliPathTarget Process *>&1 | Out-String)
@@ -74,23 +83,28 @@ exit /b 0
   Assert-Equal "algomim" ([string] @($settings.availableModels)[0]) "settings allow only the Algomim model"
   Assert-Equal "https://pilot.example.com" ([string] $settings.env.ANTHROPIC_BASE_URL) "settings record the service-root base URL"
   Assert-Equal "algomim" ([string] $settings.env.ANTHROPIC_MODEL) "settings select the Algomim model for the main session"
-  Assert-Equal "algomim" ([string] $settings.env.ANTHROPIC_CUSTOM_MODEL_OPTION) "settings add the Algomim custom model option"
-  Assert-Equal "Algomim" ([string] $settings.env.ANTHROPIC_CUSTOM_MODEL_OPTION_NAME) "settings label the custom model option"
-  Assert-Equal "Algomim Model API" ([string] $settings.env.ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION) "settings describe the custom model option"
+  Assert-Equal "algomim" ([string] $settings.env.ANTHROPIC_DEFAULT_OPUS_MODEL) "settings map gateway Default to Algomim"
+  Assert-Equal "Algomim" ([string] $settings.env.ANTHROPIC_DEFAULT_OPUS_MODEL_NAME) "settings label the single named model"
+  Assert-Equal "Algomim Model API" ([string] $settings.env.ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION) "settings describe the single named model"
+  Assert-Equal "algomim" ([string] $settings.env.ANTHROPIC_SMALL_FAST_MODEL) "settings redirect background functionality"
   Assert-Equal "0" ([string] $settings.env.CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY) "settings disable gateway model discovery"
   Assert-Equal "1" ([string] $settings.env.CLAUDE_CODE_DISABLE_1M_CONTEXT) "settings disable unsupported 1M aliases"
   Assert-Equal "algomim" ([string] $settings.env.CLAUDE_CODE_SUBAGENT_MODEL) "settings redirect subagents"
   Assert-Equal "1" ([string] $settings.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB) "settings scrub the credential from child processes"
-  foreach ($family in @("FABLE", "OPUS", "SONNET", "HAIKU")) {
-    Assert-Equal "algomim" ([string] $settings.env.("ANTHROPIC_DEFAULT_${family}_MODEL")) "settings map the $family default to Algomim"
-    Assert-Equal "Algomim" ([string] $settings.env.("ANTHROPIC_DEFAULT_${family}_MODEL_NAME")) "settings label the $family default as Algomim"
-    Assert-Equal "Algomim Model API" ([string] $settings.env.("ANTHROPIC_DEFAULT_${family}_MODEL_DESCRIPTION")) "settings describe the $family default"
+  foreach ($suffix in @("", "_NAME", "_DESCRIPTION", "_SUPPORTED_CAPABILITIES")) {
+    Assert-True ($null -eq $settings.env.PSObject.Properties["ANTHROPIC_CUSTOM_MODEL_OPTION$suffix"]) "settings omit the custom model option so it does not duplicate the mapped Opus row"
+  }
+  Assert-True ($null -eq $settings.env.PSObject.Properties["ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES"]) "settings omit the unused Opus capability override"
+  foreach ($family in @("FABLE", "SONNET", "HAIKU")) {
+    foreach ($suffix in @("MODEL", "MODEL_NAME", "MODEL_DESCRIPTION", "MODEL_SUPPORTED_CAPABILITIES")) {
+      Assert-True ($null -eq $settings.env.PSObject.Properties["ANTHROPIC_DEFAULT_${family}_$suffix"]) "settings omit the $family $suffix mapping so the picker has no duplicate family entry"
+    }
   }
   Assert-True (-not (Get-Content -Raw -LiteralPath $settingsPath).Contains($key)) "settings never contain the API key"
 
   $state = Get-Content -Raw -LiteralPath $statePath | ConvertFrom-Json
   Assert-Equal "claude-code" ([string] $state.integration) "state records the integration id"
-  Assert-Equal "0.3.6" ([string] $state.version) "state records the release version"
+  Assert-Equal "0.3.7" ([string] $state.version) "state records the release version"
   Assert-Equal "https://pilot.example.com" ([string] $state.baseUrl) "state records the service-root base URL"
 
   Assert-Equal $normalClaudeSettingsBefore ([Convert]::ToBase64String([System.IO.File]::ReadAllBytes($normalClaudeSettingsPath))) "install does not modify normal Claude Code settings"
@@ -107,6 +121,12 @@ exit /b 0
   Assert-True ($capture.Contains("--version")) "run claude forwards passthrough arguments"
   Assert-True ($capture.Contains("TOKEN=$key")) "run claude injects the token into the process environment"
   Assert-True ($capture.Contains("CONFIG=$isolatedClaudeConfigDir")) "run claude isolates Claude Code user state inside the integration"
+  Assert-True ($capture.Contains("FAMILY_MODEL=`r`n")) "run claude removes inherited family model mappings"
+  Assert-True ($capture.Contains("FAMILY_NAME=`r`n")) "run claude removes inherited family labels"
+  Assert-True ($capture.Contains("CUSTOM_MODEL=`r`n")) "run claude removes inherited custom model options"
+  Assert-Equal "user-opus-model" $env:ANTHROPIC_DEFAULT_OPUS_MODEL "run claude leaves the parent family model mapping unchanged"
+  Assert-Equal "User Opus" $env:ANTHROPIC_DEFAULT_OPUS_MODEL_NAME "run claude leaves the parent family label unchanged"
+  Assert-Equal "user-custom-model" $env:ANTHROPIC_CUSTOM_MODEL_OPTION "run claude leaves the parent custom model option unchanged"
   $argsLine = ($capture -split "`r?`n" | Where-Object { $_.StartsWith("ARGS=") }) -join ""
   Assert-True (-not $argsLine.Contains($key)) "run claude never places the token on the command line"
   Assert-Equal $normalClaudeSettingsBefore ([Convert]::ToBase64String([System.IO.File]::ReadAllBytes($normalClaudeSettingsPath))) "run does not modify normal Claude Code settings"
@@ -134,5 +154,8 @@ finally {
   if ($null -eq $savedProfile) { Remove-Item Env:ALGOMIM_PROFILE -ErrorAction SilentlyContinue } else { $env:ALGOMIM_PROFILE = $savedProfile }
   if ($null -eq $savedClaudeConfigDir) { Remove-Item Env:CLAUDE_CONFIG_DIR -ErrorAction SilentlyContinue } else { $env:CLAUDE_CONFIG_DIR = $savedClaudeConfigDir }
   if ($null -eq $savedStubCapture) { Remove-Item Env:CLAUDE_STUB_CAPTURE -ErrorAction SilentlyContinue } else { $env:CLAUDE_STUB_CAPTURE = $savedStubCapture }
+  if ($null -eq $savedDefaultOpusModel) { Remove-Item Env:ANTHROPIC_DEFAULT_OPUS_MODEL -ErrorAction SilentlyContinue } else { $env:ANTHROPIC_DEFAULT_OPUS_MODEL = $savedDefaultOpusModel }
+  if ($null -eq $savedDefaultOpusModelName) { Remove-Item Env:ANTHROPIC_DEFAULT_OPUS_MODEL_NAME -ErrorAction SilentlyContinue } else { $env:ANTHROPIC_DEFAULT_OPUS_MODEL_NAME = $savedDefaultOpusModelName }
+  if ($null -eq $savedCustomModelOption) { Remove-Item Env:ANTHROPIC_CUSTOM_MODEL_OPTION -ErrorAction SilentlyContinue } else { $env:ANTHROPIC_CUSTOM_MODEL_OPTION = $savedCustomModelOption }
   if (Test-Path -LiteralPath $testRoot) { Remove-Item -LiteralPath $testRoot -Recurse -Force }
 }

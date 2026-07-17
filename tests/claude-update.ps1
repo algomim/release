@@ -17,17 +17,17 @@ function Write-JsonFile {
 }
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$baselineVersion = "0.3.5"
+$baselineVersion = "0.3.6"
 $baselineTag = "v$baselineVersion"
-$baselineRevision = "7de89a58ae019834ecc5a334ba690ae94d7c89a5"
-$candidateVersion = "0.3.6"
+$baselineRevision = "9720e0d852b328cbb729185f120cd0890d8135bb"
+$candidateVersion = "0.3.7"
 $candidateTag = "v$candidateVersion"
 $invalidVersion = if ($candidateVersion -ceq "9999.9999.9999") { "9999.9999.9998" } else { "9999.9999.9999" }
 $invalidTag = "v$invalidVersion"
 
 $testRoot = Join-Path $repoRoot (".claude-update-test-{0}" -f [Guid]::NewGuid().ToString("N"))
 $artifacts = Join-Path $testRoot "artifacts"
-$baselineArchive = Join-Path $testRoot "claude-v0.3.5.zip"
+$baselineArchive = Join-Path $testRoot "claude-v0.3.6.zip"
 $baselineSource = Join-Path $testRoot "baseline"
 $candidateStage = Join-Path $testRoot "candidate"
 $algomimHome = Join-Path $testRoot "algomim"
@@ -56,7 +56,7 @@ exit /b 0
   }
   Expand-Archive -LiteralPath $baselineArchive -DestinationPath $baselineSource
   $baselineContract = Get-Content -Raw -LiteralPath (Join-Path $baselineSource "claude-code\release.json") | ConvertFrom-Json
-  Assert-Equal $baselineVersion ([string] $baselineContract.version) "baseline contract records v0.3.5"
+  Assert-Equal $baselineVersion ([string] $baselineContract.version) "baseline contract records v0.3.6"
   Assert-Equal $baselineTag ([string] $baselineContract.releaseTag) "baseline contract matches the immutable tag"
 
   & (Join-Path $baselineSource "cli\install.ps1") `
@@ -66,7 +66,7 @@ exit /b 0
     -PathTarget Process *> $null
 
   $baselineCliState = Get-Content -Raw -LiteralPath (Join-Path $algomimHome "cli\state.json") | ConvertFrom-Json
-  Assert-Equal $baselineVersion ([string] $baselineCliState.version) "test installs the immutable v0.3.5 CLI"
+  Assert-Equal $baselineVersion ([string] $baselineCliState.version) "test installs the immutable v0.3.6 CLI"
   Assert-True ((Get-Content -Raw -LiteralPath (Join-Path $algomimHome "bin\algomim.ps1")).Contains("CLAUDE_CONFIG_DIR")) "baseline CLI launcher contains Claude config isolation"
 
   & (Join-Path $baselineSource "claude-code\install.ps1") `
@@ -87,7 +87,7 @@ exit /b 0
 
   $baselineState = Get-Content -Raw -LiteralPath $statePath | ConvertFrom-Json
   $baselineCredential = Get-Content -Raw -LiteralPath $credentialsPath
-  Assert-Equal $baselineVersion ([string] $baselineState.version) "test starts from immutable v0.3.5"
+  Assert-Equal $baselineVersion ([string] $baselineState.version) "test starts from immutable v0.3.6"
   Assert-Equal $baselineTag ([string] $baselineState.releaseTag) "baseline state records the immutable tag"
   Assert-Equal "https://api.algomim.com" ([string] $baselineState.baseUrl) "baseline records the service-root base URL"
 
@@ -124,7 +124,7 @@ exit /b 0
       -ArtifactBaseUrl $artifacts *>&1 | Out-String)
   $updatedState = Get-Content -Raw -LiteralPath $statePath | ConvertFrom-Json
   $updatedSettings = Get-Content -Raw -LiteralPath $settingsPath | ConvertFrom-Json
-  Assert-Equal $candidateVersion ([string] $updatedState.version) "v0.3.5 CLI and updater install candidate v0.3.6"
+  Assert-Equal $candidateVersion ([string] $updatedState.version) "v0.3.6 CLI and updater install candidate v0.3.7"
   Assert-Equal $candidateTag ([string] $updatedState.releaseTag) "updated state records the candidate tag"
   Assert-Equal ([string] $baselineState.installedAt) ([string] $updatedState.installedAt) "update preserves installation timestamp"
   Assert-Equal $baselineCredential (Get-Content -Raw -LiteralPath $credentialsPath) "update preserves the exact credential store"
@@ -135,17 +135,22 @@ exit /b 0
   Assert-Equal "algomim" ([string] @($updatedSettings.availableModels)[0]) "updated settings allow only the Algomim model"
   Assert-Equal "https://api.algomim.com" ([string] $updatedSettings.env.ANTHROPIC_BASE_URL) "updated settings preserve the service-root base URL"
   Assert-Equal "algomim" ([string] $updatedSettings.env.ANTHROPIC_MODEL) "updated settings select the Algomim model for the main session"
-  Assert-Equal "algomim" ([string] $updatedSettings.env.ANTHROPIC_CUSTOM_MODEL_OPTION) "updated settings add the Algomim custom model option"
-  Assert-Equal "Algomim" ([string] $updatedSettings.env.ANTHROPIC_CUSTOM_MODEL_OPTION_NAME) "updated settings label the custom model option"
-  Assert-Equal "Algomim Model API" ([string] $updatedSettings.env.ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION) "updated settings describe the custom model option"
+  Assert-Equal "algomim" ([string] $updatedSettings.env.ANTHROPIC_DEFAULT_OPUS_MODEL) "updated settings map gateway Default to Algomim"
+  Assert-Equal "Algomim" ([string] $updatedSettings.env.ANTHROPIC_DEFAULT_OPUS_MODEL_NAME) "updated settings label the single named model"
+  Assert-Equal "Algomim Model API" ([string] $updatedSettings.env.ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION) "updated settings describe the single named model"
+  Assert-Equal "algomim" ([string] $updatedSettings.env.ANTHROPIC_SMALL_FAST_MODEL) "updated settings redirect background functionality"
   Assert-Equal "0" ([string] $updatedSettings.env.CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY) "updated settings disable gateway model discovery"
   Assert-Equal "1" ([string] $updatedSettings.env.CLAUDE_CODE_DISABLE_1M_CONTEXT) "updated settings disable unsupported 1M aliases"
   Assert-Equal "algomim" ([string] $updatedSettings.env.CLAUDE_CODE_SUBAGENT_MODEL) "updated settings redirect subagents"
   Assert-Equal "1" ([string] $updatedSettings.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB) "updated settings scrub the credential from child processes"
-  foreach ($family in @("FABLE", "OPUS", "SONNET", "HAIKU")) {
-    Assert-Equal "algomim" ([string] $updatedSettings.env.("ANTHROPIC_DEFAULT_${family}_MODEL")) "updated settings map the $family default to Algomim"
-    Assert-Equal "Algomim" ([string] $updatedSettings.env.("ANTHROPIC_DEFAULT_${family}_MODEL_NAME")) "updated settings label the $family default as Algomim"
-    Assert-Equal "Algomim Model API" ([string] $updatedSettings.env.("ANTHROPIC_DEFAULT_${family}_MODEL_DESCRIPTION")) "updated settings describe the $family default"
+  foreach ($suffix in @("", "_NAME", "_DESCRIPTION", "_SUPPORTED_CAPABILITIES")) {
+    Assert-True ($null -eq $updatedSettings.env.PSObject.Properties["ANTHROPIC_CUSTOM_MODEL_OPTION$suffix"]) "updated settings omit the custom model option so it does not duplicate the mapped Opus row"
+  }
+  Assert-True ($null -eq $updatedSettings.env.PSObject.Properties["ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES"]) "updated settings omit the unused Opus capability override"
+  foreach ($family in @("FABLE", "SONNET", "HAIKU")) {
+    foreach ($suffix in @("MODEL", "MODEL_NAME", "MODEL_DESCRIPTION", "MODEL_SUPPORTED_CAPABILITIES")) {
+      Assert-True ($null -eq $updatedSettings.env.PSObject.Properties["ANTHROPIC_DEFAULT_${family}_$suffix"]) "updated settings omit the $family $suffix mapping so the picker has no duplicate family entry"
+    }
   }
 
   $upToDateOutput = (& (Join-Path $integrationHome "update.ps1") `

@@ -69,12 +69,14 @@ terminals.
 
 With the normal Claude configuration (no separate `availableModels` policy),
 an Algomim session's `/model` picker shows `Algomim` as its only named model.
-Claude Code retains its own `Default` entry, but the integration's
-process-scoped model-family mappings make that choice resolve to the same
-canonical `algomim` model and display it as `Algomim`. Opus, Sonnet, Haiku,
-and Fable are hidden from the named model list; typing one of those aliases
-inside the Algomim session still resolves to `algomim`. Plain `claude` remains
-unaffected and continues to use your own Anthropic account.
+Claude Code retains its own `Default` entry, which reports the session's
+explicit `algomim` selection, followed by one named `Algomim` entry. A single
+process-scoped Opus mapping supplies that named row and makes Claude Code's
+gateway Default resolve to the same canonical `algomim` model. The launcher
+removes inherited custom and family mappings before Claude loads the integration
+settings, so no extra model rows leak in. Plain `claude` retains the parent
+environment, remains unaffected, and continues to use your own Anthropic
+account.
 
 The normal user-level `~/.claude/settings.json` file is not loaded in Algomim
 sessions. Project/local settings and an administrator's managed policy still
@@ -147,11 +149,14 @@ settings. The settings file then routes the session to Algomim:
 - `ANTHROPIC_BASE_URL` — the Algomim Model API service root
 - `model` / `ANTHROPIC_MODEL` — `algomim` for the main session
 - `availableModels` — allows only the named `algomim` model
-- `ANTHROPIC_CUSTOM_MODEL_OPTION` — adds `algomim` to `/model`, with the
-  `_NAME` and `_DESCRIPTION` companions setting its Algomim label and summary
-- `ANTHROPIC_DEFAULT_*_MODEL` — maps Claude Code's Fable, Opus, Sonnet, and
-  Haiku default resolution to the canonical `algomim` model for this process;
-  the matching `_NAME` and `_DESCRIPTION` companions display `Algomim`
+- `ANTHROPIC_DEFAULT_OPUS_MODEL` — maps Claude Code's gateway Default and one
+  named picker row to `algomim`; the `_NAME` and `_DESCRIPTION` companions label
+  that single row `Algomim` / `Algomim Model API`
+- `ANTHROPIC_SMALL_FAST_MODEL` — pins background functionality to `algomim`
+  without adding a picker row
+- inherited `ANTHROPIC_CUSTOM_MODEL_OPTION*`, `ANTHROPIC_DEFAULT_*`, and
+  `ANTHROPIC_SMALL_FAST_MODEL` variables are removed from the Algomim child
+  before its settings load; the parent shell and plain `claude` remain unchanged
 - `CLAUDE_CODE_DISABLE_1M_CONTEXT=1` — prevents Claude Code from appending an
   unsupported `[1m]` suffix when the account-level Default normally uses it
 - `CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=0` — prevents `/v1/models` from
@@ -160,9 +165,9 @@ settings. The settings file then routes the session to Algomim:
 - `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` — keeps the bearer token out of tool,
   hook, and stdio MCP child processes
 
-The family mappings never change Algomim's public model ID: every routed
-request uses `model: "algomim"`; identifiers such as `claude-algomim` are not
-created or sent.
+The integration uses the public model ID `algomim` for Default, the named model,
+background functionality, and subagents; identifiers such as `claude-algomim`
+are not created or sent.
 
 Token counting endpoints are not provided; Claude Code falls back to its local
 context estimate, which is expected and harmless.
@@ -202,13 +207,16 @@ context estimate, which is expected and harmless.
 - `env` in a settings file applies to the session and its subprocesses.
 - `ANTHROPIC_AUTH_TOKEN` sends `Authorization: Bearer` and takes precedence
   over a saved login while set.
-- `ANTHROPIC_CUSTOM_MODEL_OPTION` adds a custom `/model` entry; its `_NAME` and
-  `_DESCRIPTION` companions control the picker label and description.
 - `availableModels` restricts named picker entries but does not remove Claude
   Code's client-owned `Default` entry.
-- `ANTHROPIC_DEFAULT_*_MODEL` controls what that Default entry and the built-in
-  family aliases resolve to; its `_NAME` and `_DESCRIPTION` companions control
-  the gateway-facing picker label.
+- In a gateway session, `ANTHROPIC_DEFAULT_OPUS_MODEL` controls the Default
+  resolution and adds one configurable Opus-family row. Its `_NAME` and
+  `_DESCRIPTION` companions present that row as `Algomim`.
+- `ANTHROPIC_CUSTOM_MODEL_OPTION` is intentionally absent because it would add
+  a second named row beside the mapped Opus row.
+- `ANTHROPIC_SMALL_FAST_MODEL` is retained for background functionality even
+  though Claude Code documents it as deprecated; unlike a Haiku family mapping,
+  it does not add another picker row.
 - `CLAUDE_CODE_DISABLE_1M_CONTEXT=1` keeps the resolved model ID exactly
   `algomim` instead of `algomim[1m]`.
 - Gateway model discovery is explicitly disabled so `/v1/models` does not add

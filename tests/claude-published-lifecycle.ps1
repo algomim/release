@@ -76,17 +76,22 @@ exit /b 0
   Assert-Equal "algomim" ([string] @($settings.availableModels)[0]) "published install allows only the Algomim model"
   Assert-Equal "https://api.algomim.com" ([string] $settings.env.ANTHROPIC_BASE_URL) "published install records the service-root base URL"
   Assert-Equal "algomim" ([string] $settings.env.ANTHROPIC_MODEL) "published install selects the Algomim model for the main session"
-  Assert-Equal "algomim" ([string] $settings.env.ANTHROPIC_CUSTOM_MODEL_OPTION) "published install adds the Algomim custom model option"
-  Assert-Equal "Algomim" ([string] $settings.env.ANTHROPIC_CUSTOM_MODEL_OPTION_NAME) "published install labels the custom model option"
-  Assert-Equal "Algomim Model API" ([string] $settings.env.ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION) "published install describes the custom model option"
+  Assert-Equal "algomim" ([string] $settings.env.ANTHROPIC_DEFAULT_OPUS_MODEL) "published install maps gateway Default to Algomim"
+  Assert-Equal "Algomim" ([string] $settings.env.ANTHROPIC_DEFAULT_OPUS_MODEL_NAME) "published install labels the single named model"
+  Assert-Equal "Algomim Model API" ([string] $settings.env.ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION) "published install describes the single named model"
+  Assert-Equal "algomim" ([string] $settings.env.ANTHROPIC_SMALL_FAST_MODEL) "published install redirects background functionality"
   Assert-Equal "0" ([string] $settings.env.CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY) "published install disables gateway model discovery"
   Assert-Equal "1" ([string] $settings.env.CLAUDE_CODE_DISABLE_1M_CONTEXT) "published install disables unsupported 1M aliases"
   Assert-Equal "algomim" ([string] $settings.env.CLAUDE_CODE_SUBAGENT_MODEL) "published install redirects subagents"
   Assert-Equal "1" ([string] $settings.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB) "published install scrubs the credential from child processes"
-  foreach ($family in @("FABLE", "OPUS", "SONNET", "HAIKU")) {
-    Assert-Equal "algomim" ([string] $settings.env.("ANTHROPIC_DEFAULT_${family}_MODEL")) "published install maps the $family default to Algomim"
-    Assert-Equal "Algomim" ([string] $settings.env.("ANTHROPIC_DEFAULT_${family}_MODEL_NAME")) "published install labels the $family default as Algomim"
-    Assert-Equal "Algomim Model API" ([string] $settings.env.("ANTHROPIC_DEFAULT_${family}_MODEL_DESCRIPTION")) "published install describes the $family default"
+  foreach ($suffix in @("", "_NAME", "_DESCRIPTION", "_SUPPORTED_CAPABILITIES")) {
+    Assert-True ($null -eq $settings.env.PSObject.Properties["ANTHROPIC_CUSTOM_MODEL_OPTION$suffix"]) "published settings omit the custom model option so it does not duplicate the mapped Opus row"
+  }
+  Assert-True ($null -eq $settings.env.PSObject.Properties["ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES"]) "published settings omit the unused Opus capability override"
+  foreach ($family in @("FABLE", "SONNET", "HAIKU")) {
+    foreach ($suffix in @("MODEL", "MODEL_NAME", "MODEL_DESCRIPTION", "MODEL_SUPPORTED_CAPABILITIES")) {
+      Assert-True ($null -eq $settings.env.PSObject.Properties["ANTHROPIC_DEFAULT_${family}_$suffix"]) "published settings omit the $family $suffix mapping so the picker has no duplicate family entry"
+    }
   }
   $cliPath = Join-Path $algomimHome "bin\algomim.ps1"
   Assert-True (Test-Path -LiteralPath $cliPath -PathType Leaf) "install writes the Algomim CLI"

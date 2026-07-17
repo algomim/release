@@ -189,7 +189,8 @@ if [ -f "$SETTINGS_PATH" ]; then
 
   for required_env in \
     ANTHROPIC_MODEL \
-    ANTHROPIC_CUSTOM_MODEL_OPTION \
+    ANTHROPIC_DEFAULT_OPUS_MODEL \
+    ANTHROPIC_SMALL_FAST_MODEL \
     CLAUDE_CODE_SUBAGENT_MODEL; do
     if grep -q "\"$required_env\"[[:space:]]*:[[:space:]]*\"algomim\"" "$SETTINGS_PATH"; then
       ok "Settings set $required_env."
@@ -198,8 +199,8 @@ if [ -f "$SETTINGS_PATH" ]; then
     fi
   done
   for expected_setting in \
-    'ANTHROPIC_CUSTOM_MODEL_OPTION_NAME|Algomim' \
-    'ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION|Algomim Model API' \
+    'ANTHROPIC_DEFAULT_OPUS_MODEL_NAME|Algomim' \
+    'ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION|Algomim Model API' \
     'CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY|0' \
     'CLAUDE_CODE_DISABLE_1M_CONTEXT|1' \
     'CLAUDE_CODE_SUBPROCESS_ENV_SCRUB|1'; do
@@ -212,23 +213,28 @@ if [ -f "$SETTINGS_PATH" ]; then
     fi
   done
 
-  DEFAULT_MAPPINGS_VALID=1
+  PICKER_MAPPINGS_VALID=1
+  for mapping_suffix in '' _NAME _DESCRIPTION _SUPPORTED_CAPABILITIES; do
+    mapping_name="ANTHROPIC_CUSTOM_MODEL_OPTION${mapping_suffix}"
+    if grep -q "\"$mapping_name\"[[:space:]]*:" "$SETTINGS_PATH"; then
+      fail "Settings must not set $mapping_name because the Opus mapping already provides the single named Algomim picker entry."
+      PICKER_MAPPINGS_VALID=0
+    fi
+  done
   for family in FABLE OPUS SONNET HAIKU; do
-    for mapping in \
-      "MODEL|algomim" \
-      "MODEL_NAME|Algomim" \
-      "MODEL_DESCRIPTION|Algomim Model API"; do
-      mapping_suffix=${mapping%%|*}
-      mapping_value=${mapping#*|}
+    for mapping_suffix in MODEL MODEL_NAME MODEL_DESCRIPTION MODEL_SUPPORTED_CAPABILITIES; do
       mapping_name="ANTHROPIC_DEFAULT_${family}_${mapping_suffix}"
-      if [ "$(json_field "$mapping_name" "$SETTINGS_PATH")" != "$mapping_value" ]; then
-        fail "Settings do not set $mapping_name to $mapping_value."
-        DEFAULT_MAPPINGS_VALID=0
+      case "$mapping_name" in
+        ANTHROPIC_DEFAULT_OPUS_MODEL|ANTHROPIC_DEFAULT_OPUS_MODEL_NAME|ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION) continue ;;
+      esac
+      if grep -q "\"$mapping_name\"[[:space:]]*:" "$SETTINGS_PATH"; then
+        fail "Settings must not set $mapping_name because Claude Code renders it as another picker entry."
+        PICKER_MAPPINGS_VALID=0
       fi
     done
   done
-  if [ "$DEFAULT_MAPPINGS_VALID" = "1" ]; then
-    ok "Settings map every Claude default family to Algomim."
+  if [ "$PICKER_MAPPINGS_VALID" = "1" ]; then
+    ok "Settings expose one named Algomim picker mapping."
   fi
 
   BASE_URL=$(json_field ANTHROPIC_BASE_URL "$SETTINGS_PATH")

@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "integration": "claude-code",
-  "version": "0.3.6",
-  "releaseTag": "v0.3.6",
+  "version": "0.3.7",
+  "releaseTag": "v0.3.7",
   "minimumAlgomimCliVersion": "0.3.5",
   "channel": "pilot",
   "repository": "algomim/release"

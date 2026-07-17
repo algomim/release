@@ -199,9 +199,10 @@ if (Test-Path -LiteralPath $settingsPath) {
     if ($null -ne $settings.env) {
       foreach ($required in @(
           @{ Name = "ANTHROPIC_MODEL"; Expected = "algomim" },
-          @{ Name = "ANTHROPIC_CUSTOM_MODEL_OPTION"; Expected = "algomim" },
-          @{ Name = "ANTHROPIC_CUSTOM_MODEL_OPTION_NAME"; Expected = "Algomim" },
-          @{ Name = "ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION"; Expected = "Algomim Model API" },
+          @{ Name = "ANTHROPIC_DEFAULT_OPUS_MODEL"; Expected = "algomim" },
+          @{ Name = "ANTHROPIC_DEFAULT_OPUS_MODEL_NAME"; Expected = "Algomim" },
+          @{ Name = "ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION"; Expected = "Algomim Model API" },
+          @{ Name = "ANTHROPIC_SMALL_FAST_MODEL"; Expected = "algomim" },
           @{ Name = "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY"; Expected = "0" },
           @{ Name = "CLAUDE_CODE_DISABLE_1M_CONTEXT"; Expected = "1" },
           @{ Name = "CLAUDE_CODE_SUBAGENT_MODEL"; Expected = "algomim" },
@@ -216,22 +217,28 @@ if (Test-Path -LiteralPath $settingsPath) {
         }
       }
 
-      $defaultMappingsValid = $true
+      $pickerMappingsValid = $true
+      foreach ($suffix in @("", "_NAME", "_DESCRIPTION", "_SUPPORTED_CAPABILITIES")) {
+        $mappingName = "ANTHROPIC_CUSTOM_MODEL_OPTION$suffix"
+        if ($null -ne $settings.env.PSObject.Properties[$mappingName]) {
+          Check-Fail "Settings must not set $mappingName because the Opus mapping already provides the single named Algomim picker entry."
+          $pickerMappingsValid = $false
+        }
+      }
       foreach ($family in @("FABLE", "OPUS", "SONNET", "HAIKU")) {
-        foreach ($mapping in @(
-            @{ Suffix = "MODEL"; Expected = "algomim" },
-            @{ Suffix = "MODEL_NAME"; Expected = "Algomim" },
-            @{ Suffix = "MODEL_DESCRIPTION"; Expected = "Algomim Model API" }
-          )) {
-          $mappingName = "ANTHROPIC_DEFAULT_$($family)_$($mapping.Suffix)"
-          if ([string] $settings.env.($mappingName) -cne $mapping.Expected) {
-            Check-Fail "Settings do not set $mappingName to $($mapping.Expected)."
-            $defaultMappingsValid = $false
+        foreach ($suffix in @("MODEL", "MODEL_NAME", "MODEL_DESCRIPTION", "MODEL_SUPPORTED_CAPABILITIES")) {
+          $mappingName = "ANTHROPIC_DEFAULT_${family}_$suffix"
+          if ($mappingName -in @("ANTHROPIC_DEFAULT_OPUS_MODEL", "ANTHROPIC_DEFAULT_OPUS_MODEL_NAME", "ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION")) {
+            continue
+          }
+          if ($null -ne $settings.env.PSObject.Properties[$mappingName]) {
+            Check-Fail "Settings must not set $mappingName because Claude Code renders it as another picker entry."
+            $pickerMappingsValid = $false
           }
         }
       }
-      if ($defaultMappingsValid) {
-        Check-Ok "Settings map every Claude default family to Algomim."
+      if ($pickerMappingsValid) {
+        Check-Ok "Settings expose one named Algomim picker mapping."
       }
 
       $baseUrl = [string] $settings.env.ANTHROPIC_BASE_URL

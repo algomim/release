@@ -35,12 +35,19 @@ fi
 printf 'ARGS=%s\n' "$*" > "$CLAUDE_STUB_CAPTURE"
 printf 'TOKEN=%s\n' "${ANTHROPIC_AUTH_TOKEN:-}" >> "$CLAUDE_STUB_CAPTURE"
 printf 'CONFIG=%s\n' "${CLAUDE_CONFIG_DIR:-}" >> "$CLAUDE_STUB_CAPTURE"
+printf 'FAMILY_MODEL=%s\n' "${ANTHROPIC_DEFAULT_OPUS_MODEL:-}" >> "$CLAUDE_STUB_CAPTURE"
+printf 'FAMILY_NAME=%s\n' "${ANTHROPIC_DEFAULT_OPUS_MODEL_NAME:-}" >> "$CLAUDE_STUB_CAPTURE"
+printf 'CUSTOM_MODEL=%s\n' "${ANTHROPIC_CUSTOM_MODEL_OPTION:-}" >> "$CLAUDE_STUB_CAPTURE"
 exit 0
 EOF
 chmod 700 "$FAKE_BIN/claude"
 PATH="$FAKE_BIN:$PATH"
 SHELL="/bin/sh"
 export HOME ALGOMIM_HOME ALGOMIM_SHELL_PROFILE PATH SHELL CLAUDE_CONFIG_DIR
+ANTHROPIC_DEFAULT_OPUS_MODEL="user-opus-model"
+ANTHROPIC_DEFAULT_OPUS_MODEL_NAME="User Opus"
+ANTHROPIC_CUSTOM_MODEL_OPTION="user-custom-model"
+export ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_OPUS_MODEL_NAME ANTHROPIC_CUSTOM_MODEL_OPTION
 unset ALGOMIM_API_KEY ALGOMIM_PROFILE 2>/dev/null || true
 
 KEY="sk-claude-lifecycle-000000"
@@ -67,21 +74,28 @@ grep -q '"model"[[:space:]]*:[[:space:]]*"algomim"' "$SETTINGS_PATH" || fail "se
 grep -q '"availableModels"[[:space:]]*:[[:space:]]*\[[[:space:]]*"algomim"[[:space:]]*\]' "$SETTINGS_PATH" || fail "settings must allow only the Algomim model"
 assert_equal "https://pilot.example.com" "$(json_field ANTHROPIC_BASE_URL "$SETTINGS_PATH")" "settings must record the service-root base URL"
 assert_equal "algomim" "$(json_field ANTHROPIC_MODEL "$SETTINGS_PATH")" "settings must select the Algomim model for the main session"
-assert_equal "algomim" "$(json_field ANTHROPIC_CUSTOM_MODEL_OPTION "$SETTINGS_PATH")" "settings must add the Algomim custom model option"
-assert_equal "Algomim" "$(json_field ANTHROPIC_CUSTOM_MODEL_OPTION_NAME "$SETTINGS_PATH")" "settings must label the custom model option"
-assert_equal "Algomim Model API" "$(json_field ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION "$SETTINGS_PATH")" "settings must describe the custom model option"
+assert_equal "algomim" "$(json_field ANTHROPIC_DEFAULT_OPUS_MODEL "$SETTINGS_PATH")" "settings must map gateway Default to Algomim"
+assert_equal "Algomim" "$(json_field ANTHROPIC_DEFAULT_OPUS_MODEL_NAME "$SETTINGS_PATH")" "settings must label the single named model"
+assert_equal "Algomim Model API" "$(json_field ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION "$SETTINGS_PATH")" "settings must describe the single named model"
+assert_equal "algomim" "$(json_field ANTHROPIC_SMALL_FAST_MODEL "$SETTINGS_PATH")" "settings must redirect background functionality"
 assert_equal "0" "$(json_field CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY "$SETTINGS_PATH")" "settings must disable gateway model discovery"
 assert_equal "1" "$(json_field CLAUDE_CODE_DISABLE_1M_CONTEXT "$SETTINGS_PATH")" "settings must disable unsupported 1M aliases"
 assert_equal "algomim" "$(json_field CLAUDE_CODE_SUBAGENT_MODEL "$SETTINGS_PATH")" "settings must redirect subagents"
 assert_equal "1" "$(json_field CLAUDE_CODE_SUBPROCESS_ENV_SCRUB "$SETTINGS_PATH")" "settings must scrub the credential from child processes"
-for family in FABLE OPUS SONNET HAIKU; do
-  assert_equal "algomim" "$(json_field "ANTHROPIC_DEFAULT_${family}_MODEL" "$SETTINGS_PATH")" "settings must map the $family default to Algomim"
-  assert_equal "Algomim" "$(json_field "ANTHROPIC_DEFAULT_${family}_MODEL_NAME" "$SETTINGS_PATH")" "settings must label the $family default as Algomim"
-  assert_equal "Algomim Model API" "$(json_field "ANTHROPIC_DEFAULT_${family}_MODEL_DESCRIPTION" "$SETTINGS_PATH")" "settings must describe the $family default"
+for suffix in '' _NAME _DESCRIPTION _SUPPORTED_CAPABILITIES; do
+  mapping_name="ANTHROPIC_CUSTOM_MODEL_OPTION${suffix}"
+  ! grep -q "\"$mapping_name\"[[:space:]]*:" "$SETTINGS_PATH" || fail "settings must omit $mapping_name so it does not duplicate the mapped Opus row"
+done
+! grep -q '"ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES"[[:space:]]*:' "$SETTINGS_PATH" || fail "settings must omit the unused Opus capability override"
+for family in FABLE SONNET HAIKU; do
+  for suffix in MODEL MODEL_NAME MODEL_DESCRIPTION MODEL_SUPPORTED_CAPABILITIES; do
+    mapping_name="ANTHROPIC_DEFAULT_${family}_${suffix}"
+    ! grep -q "\"$mapping_name\"[[:space:]]*:" "$SETTINGS_PATH" || fail "settings must omit the $family $suffix mapping so the picker has no duplicate family entry"
+  done
 done
 grep -F "$KEY" "$SETTINGS_PATH" >/dev/null 2>&1 && fail "settings must not contain the API key"
 assert_equal "claude-code" "$(json_field integration "$STATE_PATH")" "state must record the integration id"
-assert_equal "0.3.6" "$(json_field version "$STATE_PATH")" "state must record the release version"
+assert_equal "0.3.7" "$(json_field version "$STATE_PATH")" "state must record the release version"
 assert_equal "https://pilot.example.com" "$(json_field baseUrl "$STATE_PATH")" "state must record the service-root base URL"
 
 cmp -s "$TEST_ROOT/normal-claude-settings.before" "$NORMAL_CLAUDE_SETTINGS" || fail "install must not modify normal Claude Code settings"
@@ -96,6 +110,12 @@ grep -F "$SETTINGS_PATH" "$CAPTURE" >/dev/null || fail "run claude must point at
 grep -F -- "--version" "$CAPTURE" >/dev/null || fail "run claude must forward passthrough arguments"
 grep -F "TOKEN=$KEY" "$CAPTURE" >/dev/null || fail "run claude must inject the token into the process environment"
 grep -F "CONFIG=$ISOLATED_CLAUDE_CONFIG" "$CAPTURE" >/dev/null || fail "run claude must isolate Claude Code user state inside the integration"
+grep -Fx "FAMILY_MODEL=" "$CAPTURE" >/dev/null || fail "run claude must remove inherited family model mappings"
+grep -Fx "FAMILY_NAME=" "$CAPTURE" >/dev/null || fail "run claude must remove inherited family labels"
+grep -Fx "CUSTOM_MODEL=" "$CAPTURE" >/dev/null || fail "run claude must remove inherited custom model options"
+assert_equal "user-opus-model" "$ANTHROPIC_DEFAULT_OPUS_MODEL" "run claude must leave the parent family model mapping unchanged"
+assert_equal "User Opus" "$ANTHROPIC_DEFAULT_OPUS_MODEL_NAME" "run claude must leave the parent family label unchanged"
+assert_equal "user-custom-model" "$ANTHROPIC_CUSTOM_MODEL_OPTION" "run claude must leave the parent custom model option unchanged"
 grep '^ARGS=' "$CAPTURE" | grep -F "$KEY" >/dev/null 2>&1 && fail "run claude must never place the token on the command line"
 cmp -s "$TEST_ROOT/normal-claude-settings.before" "$NORMAL_CLAUDE_SETTINGS" || fail "run must not modify normal Claude Code settings"
 
