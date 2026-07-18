@@ -7,7 +7,7 @@ their public contract remains compatible.
 ## Version contract
 
 The Algomim CLI, Codex integration, and Claude Code integration use semantic
-versions such as `0.3.7` and immutable-by-policy Git tags such as `v0.3.7`.
+versions such as `0.3.8` and immutable-by-policy Git tags such as `v0.3.8`.
 Their source contracts are `cli/release.json`, `codex/release.json`, and
 `claude-code/release.json`. A release tag must match all three files exactly.
 
@@ -15,8 +15,8 @@ Customer installation instructions use a tag-pinned raw URL. They never run a
 mutable `main` installer:
 
 ```text
-https://raw.githubusercontent.com/algomim/release/v0.3.7/codex/install.ps1
-https://raw.githubusercontent.com/algomim/release/v0.3.7/claude-code/install.sh
+https://raw.githubusercontent.com/algomim/release/v0.3.8/codex/install.ps1
+https://raw.githubusercontent.com/algomim/release/v0.3.8/claude-code/install.sh
 ```
 
 Pushing a matching tag starts the release workflow. Windows, Ubuntu, and macOS
@@ -37,12 +37,12 @@ lifecycle tests must pass before the workflow publishes:
 ```text
 manifest.json
 SHA256SUMS
-algomim-codex-windows-v0.3.7.zip
-algomim-codex-posix-v0.3.7.tar.gz
-algomim-claude-code-windows-v0.3.7.zip
-algomim-claude-code-posix-v0.3.7.tar.gz
-algomim-cli-windows-v0.3.7.zip
-algomim-cli-posix-v0.3.7.tar.gz
+algomim-codex-windows-v0.3.8.zip
+algomim-codex-posix-v0.3.8.tar.gz
+algomim-claude-code-windows-v0.3.8.zip
+algomim-claude-code-posix-v0.3.8.tar.gz
+algomim-cli-windows-v0.3.8.zip
+algomim-cli-posix-v0.3.8.tar.gz
 ```
 
 Published tags and release assets must not be moved, replaced, or deleted. A
@@ -53,7 +53,9 @@ fix is always a new semantic version.
 `codex/algomim-models.json` is generated from the private platform's canonical
 Inference model definitions. The adjacent `algomim-models.lock.json` records the
 generator contract and catalog SHA-256. Release packaging fails when the lock
-does not match, and the generated catalog is never edited manually.
+does not match, and the generated catalog is never edited manually. Capability
+flags such as native web-search support are released through this same generated
+catalog and the matching Codex profile contract.
 
 After a GitHub Release is published, the `Published release smoke` workflow
 downloads the immutable installer and artifacts on Windows, Ubuntu, and macOS.

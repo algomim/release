@@ -253,6 +253,12 @@ if [ -f "$PROFILE_PATH" ]; then
     fail "Profile does not use the Responses wire API."
   fi
 
+  if grep -q '^[[:space:]]*web_search[[:space:]]*=[[:space:]]*"live"[[:space:]]*$' "$PROFILE_PATH"; then
+    ok "Profile enables native web search."
+  else
+    fail "Profile does not enable native web search."
+  fi
+
   if awk '
     /^[[:space:]]*\[[^][]+\][[:space:]]*$/ {
       section = $0

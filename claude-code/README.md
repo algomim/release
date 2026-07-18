@@ -78,6 +78,10 @@ settings, so no extra model rows leak in. Plain `claude` retains the parent
 environment, remains unaffected, and continues to use your own Anthropic
 account.
 
+Algomim sessions also support Claude Code's native web-search server tool
+through hosted Inference. Search is not installed as a local MCP server and
+plain `claude` remains unaffected.
+
 The normal user-level `~/.claude/settings.json` file is not loaded in Algomim
 sessions. Project/local settings and an administrator's managed policy still
 participate, as required by Claude Code. A project or managed `availableModels`

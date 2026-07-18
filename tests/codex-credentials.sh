@@ -76,6 +76,8 @@ assert_file "$CREDENTIALS" "fresh install must create shared credentials"
 assert_equal "$DEFAULT_KEY" "$(profile_key "$CREDENTIALS" default)" "default profile must be written"
 [ ! -e "$CODEX_HOME/algomim.key" ] || fail "fresh install must not create a Codex-owned key"
 case "$INSTALL_OUTPUT" in *"$DEFAULT_KEY"*) fail "install output must not contain the credential" ;; esac
+grep -Eq '^[[:space:]]*web_search[[:space:]]*=[[:space:]]*"live"[[:space:]]*$' \
+  "$CODEX_HOME/algomim.config.toml" || fail "installed profile must enable native web search"
 awk '
   /^[[:space:]]*\[[^][]+\][[:space:]]*$/ {
     section = $0
@@ -95,7 +97,7 @@ fi
 STATE_PATH="$ALGOMIM_HOME/integrations/codex/state.json"
 assert_file "$STATE_PATH" "installer must record integration state"
 STATE_VERSION=$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$STATE_PATH")
-assert_equal "0.3.7" "$STATE_VERSION" "installer must record its release version"
+assert_equal "0.3.8" "$STATE_VERSION" "installer must record its release version"
 grep -F "$DEFAULT_KEY" "$STATE_PATH" >/dev/null 2>&1 && fail "installation state must not contain credential"
 for name in install.sh update.sh doctor.sh uninstall.sh release.json credential-store.sh; do
   assert_file "$ALGOMIM_HOME/integrations/codex/$name" "installer must write lifecycle file $name"

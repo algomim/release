@@ -95,7 +95,7 @@ for family in FABLE SONNET HAIKU; do
 done
 grep -F "$KEY" "$SETTINGS_PATH" >/dev/null 2>&1 && fail "settings must not contain the API key"
 assert_equal "claude-code" "$(json_field integration "$STATE_PATH")" "state must record the integration id"
-assert_equal "0.3.7" "$(json_field version "$STATE_PATH")" "state must record the release version"
+assert_equal "0.3.8" "$(json_field version "$STATE_PATH")" "state must record the release version"
 assert_equal "https://pilot.example.com" "$(json_field baseUrl "$STATE_PATH")" "state must record the service-root base URL"
 
 cmp -s "$TEST_ROOT/normal-claude-settings.before" "$NORMAL_CLAUDE_SETTINGS" || fail "install must not modify normal Claude Code settings"

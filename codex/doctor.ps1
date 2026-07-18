@@ -308,6 +308,13 @@ if (Test-Path -LiteralPath $profilePath) {
     Check-Fail "Profile does not use the Responses wire API."
   }
 
+  if ($profile -match '(?m)^web_search\s*=\s*"live"\s*$') {
+    Check-Ok "Profile enables native web search."
+  }
+  else {
+    Check-Fail "Profile does not enable native web search."
+  }
+
   $featuresSection = [regex]::Match(
     $profile,
     '(?ms)^\[features\][^\S\r\n]*\r?\n(?<body>.*?)(?=^\[|\z)'

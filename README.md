@@ -34,13 +34,13 @@ release repository. See
 Windows PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/algomim/release/v0.3.7/codex/install.ps1 | iex
+irm https://raw.githubusercontent.com/algomim/release/v0.3.8/codex/install.ps1 | iex
 ```
 
 macOS/Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.3.7/codex/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.3.8/codex/install.sh | sh
 ```
 
 The installer asks for the Algomim API key without echoing it, installs the
@@ -52,6 +52,10 @@ Algomim profile:
 algomim run codex
 ```
 
+The Algomim profile enables Codex's native web-search tool. Search requests
+remain part of the hosted Inference contract; this repository only advertises
+and enables the client capability.
+
 Plain `codex` keeps using the user's existing OpenAI configuration.
 (`codex --profile algomim` remains equivalent for direct use.)
 
@@ -60,13 +64,13 @@ Plain `codex` keeps using the user's existing OpenAI configuration.
 Windows PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/algomim/release/v0.3.7/claude-code/install.ps1 | iex
+irm https://raw.githubusercontent.com/algomim/release/v0.3.8/claude-code/install.ps1 | iex
 ```
 
 macOS/Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.3.7/claude-code/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.3.8/claude-code/install.sh | sh
 ```
 
 The installer does not edit `~/.claude`; plain `claude` keeps using the user's
@@ -77,6 +81,10 @@ plain Claude sessions. Start Claude Code against Algomim with:
 ```sh
 algomim run claude
 ```
+
+Inside that isolated session, Claude Code's native web-search server tool is
+handled by hosted Algomim Inference. It does not require a separate local MCP
+web-search server.
 
 Users already on v0.3.5 or newer can update their installed integrations with
 `algomim update`; the CLI executable itself is refreshed only by a tag-pinned
@@ -124,6 +132,6 @@ hand-authored model metadata.
 - Keep API keys in the shared Algomim credential store, never in a
   client-owned directory.
 - Prefer versioned release URLs for customer-facing instructions once a release
-  is cut, for example `/v0.3.7/codex/install.ps1`.
+  is cut, for example `/v0.3.8/codex/install.ps1`.
 - Never move an existing release tag or replace published release assets; ship
   a new semantic version instead.

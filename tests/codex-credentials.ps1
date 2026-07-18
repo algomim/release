@@ -83,6 +83,9 @@ try {
   Assert-True (-not (Test-Path -LiteralPath (Join-Path $codexHome "algomim.key"))) "fresh install does not create a Codex-owned key"
   Assert-True (-not $installOutput.Contains($defaultKey)) "install output never contains the credential"
   $installedProfile = Get-Content -Raw -LiteralPath (Join-Path $codexHome "algomim.config.toml")
+  Assert-True (
+    $installedProfile -match '(?m)^web_search\s*=\s*"live"\s*$'
+  ) "installed profile enables native web search"
   $featuresSection = [regex]::Match(
     $installedProfile,
     '(?ms)^\[features\][^\S\r\n]*\r?\n(?<body>.*?)(?=^\[|\z)'
@@ -97,7 +100,7 @@ try {
   Assert-True (-not $codexArtifacts.Contains($defaultKey)) "Codex artifacts never embed the credential"
   $statePath = Join-Path $algomimHome "integrations\codex\state.json"
   $state = Get-Content -Raw -LiteralPath $statePath | ConvertFrom-Json
-  Assert-Equal "0.3.7" ([string] $state.version) "installer records its release version"
+  Assert-Equal "0.3.8" ([string] $state.version) "installer records its release version"
   Assert-Equal "default" ([string] $state.credentialProfile) "installer records the selected credential profile"
   Assert-True (-not (Get-Content -Raw -LiteralPath $statePath).Contains($defaultKey)) "installation state never contains the credential"
   foreach ($name in @("install.ps1", "update.ps1", "doctor.ps1", "uninstall.ps1", "release.json", "credential-store.ps1")) {

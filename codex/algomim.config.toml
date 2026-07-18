@@ -4,7 +4,7 @@
 model = "algomim"
 model_provider = "algomim"
 model_catalog_json = "<absolute-path-to-algomim-models.json>"
-web_search = "disabled"
+web_search = "live"
 service_tier = "default"
 model_reasoning_effort = "medium"
 

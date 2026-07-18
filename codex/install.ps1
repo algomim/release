@@ -2,7 +2,7 @@ param(
   [string] $BaseUrl = "",
   [string] $ApiKey = "",
   [string] $ReleaseRef = "",
-  [string] $ReleaseVersion = "0.3.7",
+  [string] $ReleaseVersion = "0.3.8",
   [string] $CredentialProfile = "",
   [string] $AlgomimHome = "",
   [switch] $SkipKey,
@@ -472,7 +472,7 @@ $profile = @"
 model = "algomim"
 model_provider = "algomim"
 model_catalog_json = "$catalogToml"
-web_search = "disabled"
+web_search = "live"
 service_tier = "default"
 model_reasoning_effort = "medium"
 

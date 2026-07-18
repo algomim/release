@@ -53,6 +53,10 @@ assert(
   "Codex profile must pin the default service tier",
 );
 assert(
+  /^web_search = "live"$/m.test(profile),
+  "Codex profile must enable native web search",
+);
+assert(
   /^\[features\]\r?\npersonality = false$/m.test(profile),
   "Codex profile must disable unsupported personality injection",
 );
@@ -92,8 +96,8 @@ for (const model of catalog.models) {
     "reasoning summaries must be supported and disabled by default",
   );
   assert(
-    model.supports_search_tool === false,
-    "Codex-hosted search must remain disabled",
+    model.supports_search_tool === true,
+    "Codex catalog must advertise native web search",
   );
   assert(
     model.prefer_websockets === false,
