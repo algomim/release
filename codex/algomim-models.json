@@ -7,10 +7,6 @@
       "default_reasoning_level": "medium",
       "supported_reasoning_levels": [
         {
-          "effort": "none",
-          "description": "Direct answers without deliberate reasoning."
-        },
-        {
           "effort": "minimal",
           "description": "Very light reasoning for simple tasks."
         },
@@ -25,14 +21,6 @@
         {
           "effort": "high",
           "description": "Deeper reasoning for complex work."
-        },
-        {
-          "effort": "xhigh",
-          "description": "Extra reasoning for difficult problems."
-        },
-        {
-          "effort": "max",
-          "description": "Maximum reasoning for the hardest problems."
         }
       ],
       "shell_type": "shell_command",
@@ -64,6 +52,7 @@
         "image"
       ],
       "supports_search_tool": true,
+      "web_search_tool_type": "text",
       "use_responses_lite": false,
       "prefer_websockets": false
     }

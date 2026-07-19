@@ -1,7 +1,7 @@
 param(
   [string] $AlgomimHome = "",
   [string] $ReleaseRef = "",
-  [string] $ReleaseVersion = "0.3.9",
+  [string] $ReleaseVersion = "0.3.10",
   [ValidateSet("User", "Process")]
   [string] $PathTarget = "User"
 )

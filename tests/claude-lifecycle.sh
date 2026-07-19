@@ -29,7 +29,7 @@ cp "$NORMAL_CLAUDE_SETTINGS" "$TEST_ROOT/normal-claude-settings.before"
 cat > "$FAKE_BIN/claude" <<'EOF'
 #!/usr/bin/env sh
 if [ "${1:-}" = "--version" ]; then
-  printf '2.1.211\n'
+  printf '2.1.214\n'
   exit 0
 fi
 printf 'ARGS=%s\n' "$*" > "$CLAUDE_STUB_CAPTURE"
@@ -71,12 +71,14 @@ assert_file "$STATE_PATH" "installer must write the integration state"
 assert_file "$CLI" "installer must install the Algomim CLI"
 
 grep -q '"model"[[:space:]]*:[[:space:]]*"algomim"' "$SETTINGS_PATH" || fail "settings must select the Algomim model"
+assert_equal "medium" "$(json_field effortLevel "$SETTINGS_PATH")" "settings must select medium effort by default"
 grep -q '"availableModels"[[:space:]]*:[[:space:]]*\[[[:space:]]*"algomim"[[:space:]]*\]' "$SETTINGS_PATH" || fail "settings must allow only the Algomim model"
 assert_equal "https://pilot.example.com" "$(json_field ANTHROPIC_BASE_URL "$SETTINGS_PATH")" "settings must record the service-root base URL"
 assert_equal "algomim" "$(json_field ANTHROPIC_MODEL "$SETTINGS_PATH")" "settings must select the Algomim model for the main session"
 assert_equal "algomim" "$(json_field ANTHROPIC_DEFAULT_OPUS_MODEL "$SETTINGS_PATH")" "settings must map gateway Default to Algomim"
 assert_equal "Algomim" "$(json_field ANTHROPIC_DEFAULT_OPUS_MODEL_NAME "$SETTINGS_PATH")" "settings must label the single named model"
 assert_equal "Algomim Model API" "$(json_field ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION "$SETTINGS_PATH")" "settings must describe the single named model"
+assert_equal "effort" "$(json_field ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES "$SETTINGS_PATH")" "settings must enable only the supported Claude effort levels"
 assert_equal "algomim" "$(json_field ANTHROPIC_SMALL_FAST_MODEL "$SETTINGS_PATH")" "settings must redirect background functionality"
 assert_equal "0" "$(json_field CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY "$SETTINGS_PATH")" "settings must disable gateway model discovery"
 assert_equal "1" "$(json_field CLAUDE_CODE_DISABLE_1M_CONTEXT "$SETTINGS_PATH")" "settings must disable unsupported 1M aliases"
@@ -86,7 +88,6 @@ for suffix in '' _NAME _DESCRIPTION _SUPPORTED_CAPABILITIES; do
   mapping_name="ANTHROPIC_CUSTOM_MODEL_OPTION${suffix}"
   ! grep -q "\"$mapping_name\"[[:space:]]*:" "$SETTINGS_PATH" || fail "settings must omit $mapping_name so it does not duplicate the mapped Opus row"
 done
-! grep -q '"ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES"[[:space:]]*:' "$SETTINGS_PATH" || fail "settings must omit the unused Opus capability override"
 for family in FABLE SONNET HAIKU; do
   for suffix in MODEL MODEL_NAME MODEL_DESCRIPTION MODEL_SUPPORTED_CAPABILITIES; do
     mapping_name="ANTHROPIC_DEFAULT_${family}_${suffix}"
@@ -95,7 +96,7 @@ for family in FABLE SONNET HAIKU; do
 done
 grep -F "$KEY" "$SETTINGS_PATH" >/dev/null 2>&1 && fail "settings must not contain the API key"
 assert_equal "claude-code" "$(json_field integration "$STATE_PATH")" "state must record the integration id"
-assert_equal "0.3.9" "$(json_field version "$STATE_PATH")" "state must record the release version"
+assert_equal "0.3.10" "$(json_field version "$STATE_PATH")" "state must record the release version"
 assert_equal "https://pilot.example.com" "$(json_field baseUrl "$STATE_PATH")" "state must record the service-root base URL"
 
 cmp -s "$TEST_ROOT/normal-claude-settings.before" "$NORMAL_CLAUDE_SETTINGS" || fail "install must not modify normal Claude Code settings"

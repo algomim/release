@@ -2,7 +2,7 @@ param(
   [string] $BaseUrl = "",
   [string] $ApiKey = "",
   [string] $ReleaseRef = "",
-  [string] $ReleaseVersion = "0.3.9",
+  [string] $ReleaseVersion = "0.3.10",
   [string] $CredentialProfile = "",
   [string] $AlgomimHome = "",
   [switch] $SkipKey,
@@ -341,6 +341,7 @@ $baseUrlJson = Escape-JsonString $BaseUrl
 $settings = @"
 {
   "model": "algomim",
+  "effortLevel": "medium",
   "availableModels": ["algomim"],
   "env": {
     "ANTHROPIC_BASE_URL": "$baseUrlJson",
@@ -348,6 +349,7 @@ $settings = @"
     "ANTHROPIC_DEFAULT_OPUS_MODEL": "algomim",
     "ANTHROPIC_DEFAULT_OPUS_MODEL_NAME": "Algomim",
     "ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION": "Algomim Model API",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES": "effort",
     "ANTHROPIC_SMALL_FAST_MODEL": "algomim",
     "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY": "0",
     "CLAUDE_CODE_DISABLE_1M_CONTEXT": "1",

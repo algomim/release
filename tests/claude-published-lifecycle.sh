@@ -89,7 +89,7 @@ trap cleanup EXIT HUP INT TERM
 cat > "$FAKE_BIN/claude" <<'EOF'
 #!/usr/bin/env sh
 if [ "${1:-}" = "--version" ]; then
-  printf '2.1.211\n'
+  printf '2.1.214\n'
   exit 0
 fi
 printf 'ARGS=%s\n' "$*" > "$CLAUDE_STUB_CAPTURE"
@@ -121,12 +121,14 @@ cmp -s "$TEST_ROOT/normal-claude-settings.before" "$NORMAL_CLAUDE_SETTINGS" || f
 assert_file "$CLI" "install must write the Algomim CLI"
 case "$INSTALL_OUTPUT" in *"$KEY"*) fail "install output must not expose the credential" ;; esac
 grep -q '"model"[[:space:]]*:[[:space:]]*"algomim"' "$SETTINGS_PATH" || fail "published install must select the Algomim model"
+assert_equal "medium" "$(json_field effortLevel "$SETTINGS_PATH")" "published install must select medium effort by default"
 grep -q '"availableModels"[[:space:]]*:[[:space:]]*\[[[:space:]]*"algomim"[[:space:]]*\]' "$SETTINGS_PATH" || fail "published install must allow only the Algomim model"
 assert_equal "https://api.algomim.com" "$(json_field ANTHROPIC_BASE_URL "$SETTINGS_PATH")" "published install must record the service-root base URL"
 assert_equal "algomim" "$(json_field ANTHROPIC_MODEL "$SETTINGS_PATH")" "published install must select the Algomim model for the main session"
 assert_equal "algomim" "$(json_field ANTHROPIC_DEFAULT_OPUS_MODEL "$SETTINGS_PATH")" "published install must map gateway Default to Algomim"
 assert_equal "Algomim" "$(json_field ANTHROPIC_DEFAULT_OPUS_MODEL_NAME "$SETTINGS_PATH")" "published install must label the single named model"
 assert_equal "Algomim Model API" "$(json_field ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION "$SETTINGS_PATH")" "published install must describe the single named model"
+assert_equal "effort" "$(json_field ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES "$SETTINGS_PATH")" "published install must enable only the supported Claude effort levels"
 assert_equal "algomim" "$(json_field ANTHROPIC_SMALL_FAST_MODEL "$SETTINGS_PATH")" "published install must redirect background functionality"
 assert_equal "0" "$(json_field CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY "$SETTINGS_PATH")" "published install must disable gateway model discovery"
 assert_equal "1" "$(json_field CLAUDE_CODE_DISABLE_1M_CONTEXT "$SETTINGS_PATH")" "published install must disable unsupported 1M aliases"
@@ -136,7 +138,6 @@ for suffix in '' _NAME _DESCRIPTION _SUPPORTED_CAPABILITIES; do
   mapping_name="ANTHROPIC_CUSTOM_MODEL_OPTION${suffix}"
   ! grep -q "\"$mapping_name\"[[:space:]]*:" "$SETTINGS_PATH" || fail "published settings must omit $mapping_name so it does not duplicate the mapped Opus row"
 done
-! grep -q '"ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES"[[:space:]]*:' "$SETTINGS_PATH" || fail "published settings must omit the unused Opus capability override"
 for family in FABLE SONNET HAIKU; do
   for suffix in MODEL MODEL_NAME MODEL_DESCRIPTION MODEL_SUPPORTED_CAPABILITIES; do
     mapping_name="ANTHROPIC_DEFAULT_${family}_${suffix}"

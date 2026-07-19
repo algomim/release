@@ -36,7 +36,7 @@ write_manifest() {
   "version": "$version",
   "releaseTag": "v$version",
   "channel": "pilot",
-  "minimumClaudeCodeVersion": "2.1.200",
+  "minimumClaudeCodeVersion": "2.1.214",
   "claudeCodeArtifacts": {
     "windows": {
       "file": "unused.zip",
@@ -80,9 +80,9 @@ copy_claude_bundle() {
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
-BASELINE_VERSION="0.3.8"
+BASELINE_VERSION="0.3.9"
 BASELINE_TAG="v$BASELINE_VERSION"
-BASELINE_REVISION="fbd0cc04abd01f66e1235f40d525882f67d51f5c"
+BASELINE_REVISION="c5b8285408312e295f684ab0c3ef510dd89f3c10"
 CANDIDATE_VERSION=$(json_field version "$REPO_ROOT/claude-code/release.json")
 CANDIDATE_TAG=$(json_field releaseTag "$REPO_ROOT/claude-code/release.json")
 assert_equal "v$CANDIDATE_VERSION" "$CANDIDATE_TAG" "candidate contract must match its version"
@@ -104,7 +104,7 @@ mkdir -p "$ARTIFACTS" "$STAGE" "$FAKE_BIN"
 cat > "$FAKE_BIN/claude" <<'EOF'
 #!/usr/bin/env sh
 if [ "${1:-}" = "--version" ]; then
-  printf '2.1.212\n'
+  printf '2.1.214\n'
 fi
 exit 0
 EOF
@@ -172,12 +172,14 @@ cmp -s "$TEST_ROOT/credential-before-update" "$CREDENTIALS_PATH" || fail "update
 cmp -s "$TEST_ROOT/runtime-sentinel.before" "$RUNTIME_SENTINEL" || fail "update must preserve isolated Claude Code runtime state"
 case "$UPDATE_OUTPUT" in *"$KEY"*) fail "update output must not contain credential" ;; esac
 grep -q '"model"[[:space:]]*:[[:space:]]*"algomim"' "$SETTINGS_PATH" || fail "updated settings must select the Algomim model"
+assert_equal "medium" "$(json_field effortLevel "$SETTINGS_PATH")" "updated settings must select medium effort by default"
 grep -q '"availableModels"[[:space:]]*:[[:space:]]*\[[[:space:]]*"algomim"[[:space:]]*\]' "$SETTINGS_PATH" || fail "updated settings must allow only the Algomim model"
 assert_equal "https://api.algomim.com" "$(json_field ANTHROPIC_BASE_URL "$SETTINGS_PATH")" "updated settings must preserve the service-root base URL"
 assert_equal "algomim" "$(json_field ANTHROPIC_MODEL "$SETTINGS_PATH")" "updated settings must select the Algomim model for the main session"
 assert_equal "algomim" "$(json_field ANTHROPIC_DEFAULT_OPUS_MODEL "$SETTINGS_PATH")" "updated settings must map gateway Default to Algomim"
 assert_equal "Algomim" "$(json_field ANTHROPIC_DEFAULT_OPUS_MODEL_NAME "$SETTINGS_PATH")" "updated settings must label the single named model"
 assert_equal "Algomim Model API" "$(json_field ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION "$SETTINGS_PATH")" "updated settings must describe the single named model"
+assert_equal "effort" "$(json_field ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES "$SETTINGS_PATH")" "updated settings must enable only the supported Claude effort levels"
 assert_equal "algomim" "$(json_field ANTHROPIC_SMALL_FAST_MODEL "$SETTINGS_PATH")" "updated settings must redirect background functionality"
 assert_equal "0" "$(json_field CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY "$SETTINGS_PATH")" "updated settings must disable gateway model discovery"
 assert_equal "1" "$(json_field CLAUDE_CODE_DISABLE_1M_CONTEXT "$SETTINGS_PATH")" "updated settings must disable unsupported 1M aliases"
@@ -187,7 +189,6 @@ for suffix in '' _NAME _DESCRIPTION _SUPPORTED_CAPABILITIES; do
   mapping_name="ANTHROPIC_CUSTOM_MODEL_OPTION${suffix}"
   ! grep -q "\"$mapping_name\"[[:space:]]*:" "$SETTINGS_PATH" || fail "updated settings must omit $mapping_name so it does not duplicate the mapped Opus row"
 done
-! grep -q '"ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES"[[:space:]]*:' "$SETTINGS_PATH" || fail "updated settings must omit the unused Opus capability override"
 for family in FABLE SONNET HAIKU; do
   for suffix in MODEL MODEL_NAME MODEL_DESCRIPTION MODEL_SUPPORTED_CAPABILITIES; do
     mapping_name="ANTHROPIC_DEFAULT_${family}_${suffix}"

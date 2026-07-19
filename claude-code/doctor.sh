@@ -155,7 +155,7 @@ fi
 if command -v claude >/dev/null 2>&1; then
   CLAUDE_VERSION_OUTPUT=$(claude --version 2>/dev/null || printf '')
   CLAUDE_VERSION=$(printf '%s\n' "$CLAUDE_VERSION_OUTPUT" | sed -n 's/.*\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' | head -n 1)
-  if [ -n "$CLAUDE_VERSION" ] && awk -v current="$CLAUDE_VERSION" -v minimum="2.1.200" 'BEGIN {
+  if [ -n "$CLAUDE_VERSION" ] && awk -v current="$CLAUDE_VERSION" -v minimum="2.1.214" 'BEGIN {
       split(current, c, "."); split(minimum, m, ".")
       for (i = 1; i <= 3; i++) {
         if ((c[i] + 0) > (m[i] + 0)) exit 0
@@ -165,7 +165,7 @@ if command -v claude >/dev/null 2>&1; then
     }'; then
     ok "Claude Code CLI $CLAUDE_VERSION is supported."
   else
-    fail "Claude Code CLI 2.1.200 or newer is required."
+    fail "Claude Code CLI 2.1.214 or newer is required."
   fi
 else
   fail "Claude Code CLI is not available on PATH."
@@ -179,6 +179,12 @@ if [ -f "$SETTINGS_PATH" ]; then
     ok "Settings select the Algomim model."
   else
     fail "Settings do not select algomim."
+  fi
+
+  if grep -q '"effortLevel"[[:space:]]*:[[:space:]]*"medium"' "$SETTINGS_PATH"; then
+    ok "Settings select medium effort by default."
+  else
+    fail "Settings must select medium effort by default."
   fi
 
   if grep -q '"availableModels"[[:space:]]*:[[:space:]]*\[[[:space:]]*"algomim"[[:space:]]*\]' "$SETTINGS_PATH"; then
@@ -201,6 +207,7 @@ if [ -f "$SETTINGS_PATH" ]; then
   for expected_setting in \
     'ANTHROPIC_DEFAULT_OPUS_MODEL_NAME|Algomim' \
     'ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION|Algomim Model API' \
+    'ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES|effort' \
     'CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY|0' \
     'CLAUDE_CODE_DISABLE_1M_CONTEXT|1' \
     'CLAUDE_CODE_SUBPROCESS_ENV_SCRUB|1'; do
@@ -225,7 +232,7 @@ if [ -f "$SETTINGS_PATH" ]; then
     for mapping_suffix in MODEL MODEL_NAME MODEL_DESCRIPTION MODEL_SUPPORTED_CAPABILITIES; do
       mapping_name="ANTHROPIC_DEFAULT_${family}_${mapping_suffix}"
       case "$mapping_name" in
-        ANTHROPIC_DEFAULT_OPUS_MODEL|ANTHROPIC_DEFAULT_OPUS_MODEL_NAME|ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION) continue ;;
+        ANTHROPIC_DEFAULT_OPUS_MODEL|ANTHROPIC_DEFAULT_OPUS_MODEL_NAME|ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION|ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES) continue ;;
       esac
       if grep -q "\"$mapping_name\"[[:space:]]*:" "$SETTINGS_PATH"; then
         fail "Settings must not set $mapping_name because Claude Code renders it as another picker entry."

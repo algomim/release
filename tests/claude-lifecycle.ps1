@@ -35,7 +35,7 @@ try {
   $normalClaudeSettingsBefore = [Convert]::ToBase64String([System.IO.File]::ReadAllBytes($normalClaudeSettingsPath))
   Set-Content -LiteralPath (Join-Path $fakeBin "claude.cmd") -Encoding ascii -Value @"
 @echo off
-if "%~1"=="--version" echo 2.1.211
+if "%~1"=="--version" echo 2.1.214
 if "%~1"=="--version" exit /b 0
 echo ARGS=%*> "%CLAUDE_STUB_CAPTURE%"
 echo TOKEN=%ANTHROPIC_AUTH_TOKEN%>> "%CLAUDE_STUB_CAPTURE%"
@@ -79,6 +79,7 @@ exit /b 0
 
   $settings = Get-Content -Raw -LiteralPath $settingsPath | ConvertFrom-Json
   Assert-Equal "algomim" ([string] $settings.model) "settings select the Algomim model"
+  Assert-Equal "medium" ([string] $settings.effortLevel) "settings select medium effort by default"
   Assert-Equal "1" ([string] @($settings.availableModels).Count) "settings expose one named model"
   Assert-Equal "algomim" ([string] @($settings.availableModels)[0]) "settings allow only the Algomim model"
   Assert-Equal "https://pilot.example.com" ([string] $settings.env.ANTHROPIC_BASE_URL) "settings record the service-root base URL"
@@ -86,6 +87,7 @@ exit /b 0
   Assert-Equal "algomim" ([string] $settings.env.ANTHROPIC_DEFAULT_OPUS_MODEL) "settings map gateway Default to Algomim"
   Assert-Equal "Algomim" ([string] $settings.env.ANTHROPIC_DEFAULT_OPUS_MODEL_NAME) "settings label the single named model"
   Assert-Equal "Algomim Model API" ([string] $settings.env.ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION) "settings describe the single named model"
+  Assert-Equal "effort" ([string] $settings.env.ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES) "settings enable only the supported Claude effort levels"
   Assert-Equal "algomim" ([string] $settings.env.ANTHROPIC_SMALL_FAST_MODEL) "settings redirect background functionality"
   Assert-Equal "0" ([string] $settings.env.CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY) "settings disable gateway model discovery"
   Assert-Equal "1" ([string] $settings.env.CLAUDE_CODE_DISABLE_1M_CONTEXT) "settings disable unsupported 1M aliases"
@@ -94,7 +96,6 @@ exit /b 0
   foreach ($suffix in @("", "_NAME", "_DESCRIPTION", "_SUPPORTED_CAPABILITIES")) {
     Assert-True ($null -eq $settings.env.PSObject.Properties["ANTHROPIC_CUSTOM_MODEL_OPTION$suffix"]) "settings omit the custom model option so it does not duplicate the mapped Opus row"
   }
-  Assert-True ($null -eq $settings.env.PSObject.Properties["ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES"]) "settings omit the unused Opus capability override"
   foreach ($family in @("FABLE", "SONNET", "HAIKU")) {
     foreach ($suffix in @("MODEL", "MODEL_NAME", "MODEL_DESCRIPTION", "MODEL_SUPPORTED_CAPABILITIES")) {
       Assert-True ($null -eq $settings.env.PSObject.Properties["ANTHROPIC_DEFAULT_${family}_$suffix"]) "settings omit the $family $suffix mapping so the picker has no duplicate family entry"
@@ -104,7 +105,7 @@ exit /b 0
 
   $state = Get-Content -Raw -LiteralPath $statePath | ConvertFrom-Json
   Assert-Equal "claude-code" ([string] $state.integration) "state records the integration id"
-  Assert-Equal "0.3.9" ([string] $state.version) "state records the release version"
+  Assert-Equal "0.3.10" ([string] $state.version) "state records the release version"
   Assert-Equal "https://pilot.example.com" ([string] $state.baseUrl) "state records the service-root base URL"
 
   Assert-Equal $normalClaudeSettingsBefore ([Convert]::ToBase64String([System.IO.File]::ReadAllBytes($normalClaudeSettingsPath))) "install does not modify normal Claude Code settings"

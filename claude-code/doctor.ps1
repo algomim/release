@@ -164,11 +164,11 @@ if ($null -ne $minimumAlgomimCliVersion) {
 
 if (Get-Command claude -ErrorAction SilentlyContinue) {
   $claudeVersionOutput = (& claude --version 2>$null | Out-String).Trim()
-  if ($claudeVersionOutput -match '(\d+\.\d+\.\d+)' -and ([version] $Matches[1]) -ge ([version] "2.1.200")) {
+  if ($claudeVersionOutput -match '(\d+\.\d+\.\d+)' -and ([version] $Matches[1]) -ge ([version] "2.1.214")) {
     Check-Ok "Claude Code CLI $($Matches[1]) is supported."
   }
   else {
-    Check-Fail "Claude Code CLI 2.1.200 or newer is required."
+    Check-Fail "Claude Code CLI 2.1.214 or newer is required."
   }
 }
 else {
@@ -188,6 +188,13 @@ if (Test-Path -LiteralPath $settingsPath) {
       Check-Fail "Settings do not select algomim."
     }
 
+    if ($settings.effortLevel -eq "medium") {
+      Check-Ok "Settings select medium effort by default."
+    }
+    else {
+      Check-Fail "Settings must select medium effort by default."
+    }
+
     $availableModels = @($settings.availableModels)
     if ($availableModels.Count -eq 1 -and $availableModels[0] -eq "algomim") {
       Check-Ok "Settings expose only the Algomim model."
@@ -202,6 +209,7 @@ if (Test-Path -LiteralPath $settingsPath) {
           @{ Name = "ANTHROPIC_DEFAULT_OPUS_MODEL"; Expected = "algomim" },
           @{ Name = "ANTHROPIC_DEFAULT_OPUS_MODEL_NAME"; Expected = "Algomim" },
           @{ Name = "ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION"; Expected = "Algomim Model API" },
+          @{ Name = "ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES"; Expected = "effort" },
           @{ Name = "ANTHROPIC_SMALL_FAST_MODEL"; Expected = "algomim" },
           @{ Name = "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY"; Expected = "0" },
           @{ Name = "CLAUDE_CODE_DISABLE_1M_CONTEXT"; Expected = "1" },
@@ -228,7 +236,7 @@ if (Test-Path -LiteralPath $settingsPath) {
       foreach ($family in @("FABLE", "OPUS", "SONNET", "HAIKU")) {
         foreach ($suffix in @("MODEL", "MODEL_NAME", "MODEL_DESCRIPTION", "MODEL_SUPPORTED_CAPABILITIES")) {
           $mappingName = "ANTHROPIC_DEFAULT_${family}_$suffix"
-          if ($mappingName -in @("ANTHROPIC_DEFAULT_OPUS_MODEL", "ANTHROPIC_DEFAULT_OPUS_MODEL_NAME", "ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION")) {
+          if ($mappingName -in @("ANTHROPIC_DEFAULT_OPUS_MODEL", "ANTHROPIC_DEFAULT_OPUS_MODEL_NAME", "ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION", "ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES")) {
             continue
           }
           if ($null -ne $settings.env.PSObject.Properties[$mappingName]) {

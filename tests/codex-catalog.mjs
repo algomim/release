@@ -11,11 +11,15 @@ const TEST_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CATALOG_PATH = resolve(TEST_ROOT, "codex", "algomim-models.json");
 const LOCK_PATH = resolve(TEST_ROOT, "codex", "algomim-models.lock.json");
 const PROFILE_PATH = resolve(TEST_ROOT, "codex", "algomim.config.toml");
+const WINDOWS_INSTALLER_PATH = resolve(TEST_ROOT, "codex", "install.ps1");
+const POSIX_INSTALLER_PATH = resolve(TEST_ROOT, "codex", "install.sh");
 
 const catalogSource = readFileSync(CATALOG_PATH, "utf8");
 const catalog = JSON.parse(catalogSource);
 const lock = JSON.parse(readFileSync(LOCK_PATH, "utf8"));
 const profile = readFileSync(PROFILE_PATH, "utf8");
+const windowsInstaller = readFileSync(WINDOWS_INSTALLER_PATH, "utf8");
+const posixInstaller = readFileSync(POSIX_INSTALLER_PATH, "utf8");
 const catalogHash = createHash("sha256").update(catalogSource).digest("hex");
 
 assert(lock.schemaVersion === 1, "catalog lock schema must be version 1");
@@ -35,6 +39,21 @@ assert(
   Array.isArray(catalog.models) && catalog.models.length === 1,
   "catalog must expose exactly one public model",
 );
+for (const [surface, source] of [
+  ["Codex profile", profile],
+  ["Windows installer", windowsInstaller],
+  ["POSIX installer", posixInstaller],
+]) {
+  const configuredEfforts = [...source.matchAll(/model_reasoning_effort = "([^"]+)"/g)];
+  assert(
+    configuredEfforts.length === 1,
+    `${surface} must configure exactly one reasoning effort default`,
+  );
+  assert(
+    configuredEfforts[0][1] === catalog.models[0].default_reasoning_level,
+    `${surface} reasoning effort must match the generated catalog default`,
+  );
+}
 assert(
   catalog.models[0].slug === "algomim",
   "algomim must be the only public model",
@@ -115,6 +134,11 @@ for (const model of catalog.models) {
     Array.isArray(model.supported_reasoning_levels) &&
       model.supported_reasoning_levels.length > 0,
     "reasoning levels are required",
+  );
+  assert(
+    JSON.stringify(model.supported_reasoning_levels.map((level) => level.effort)) ===
+      JSON.stringify(["minimal", "low", "medium", "high"]),
+    "reasoning levels must match the mandatory upstream model contract",
   );
   assert(
     model.supported_reasoning_levels.some(

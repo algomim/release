@@ -7,7 +7,7 @@ their public contract remains compatible.
 ## Version contract
 
 The Algomim CLI, Codex integration, and Claude Code integration use semantic
-versions such as `0.3.9` and immutable-by-policy Git tags such as `v0.3.9`.
+versions such as `0.3.10` and immutable-by-policy Git tags such as `v0.3.10`.
 Their source contracts are `cli/release.json`, `codex/release.json`, and
 `claude-code/release.json`. A release tag must match all three files exactly.
 
@@ -15,8 +15,8 @@ Customer installation instructions use a tag-pinned raw URL. They never run a
 mutable `main` installer:
 
 ```text
-https://raw.githubusercontent.com/algomim/release/v0.3.9/codex/install.ps1
-https://raw.githubusercontent.com/algomim/release/v0.3.9/claude-code/install.sh
+https://raw.githubusercontent.com/algomim/release/v0.3.10/codex/install.ps1
+https://raw.githubusercontent.com/algomim/release/v0.3.10/claude-code/install.sh
 ```
 
 Pushing a matching tag starts the release workflow. Windows, Ubuntu, and macOS
@@ -37,12 +37,12 @@ lifecycle tests must pass before the workflow publishes:
 ```text
 manifest.json
 SHA256SUMS
-algomim-codex-windows-v0.3.9.zip
-algomim-codex-posix-v0.3.9.tar.gz
-algomim-claude-code-windows-v0.3.9.zip
-algomim-claude-code-posix-v0.3.9.tar.gz
-algomim-cli-windows-v0.3.9.zip
-algomim-cli-posix-v0.3.9.tar.gz
+algomim-codex-windows-v0.3.10.zip
+algomim-codex-posix-v0.3.10.tar.gz
+algomim-claude-code-windows-v0.3.10.zip
+algomim-claude-code-posix-v0.3.10.tar.gz
+algomim-cli-windows-v0.3.10.zip
+algomim-cli-posix-v0.3.10.tar.gz
 ```
 
 Published tags and release assets must not be moved, replaced, or deleted. A

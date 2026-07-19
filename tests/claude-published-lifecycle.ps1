@@ -40,7 +40,7 @@ try {
   $normalClaudeSettingsBefore = [Convert]::ToBase64String([System.IO.File]::ReadAllBytes($normalClaudeSettingsPath))
   Set-Content -LiteralPath (Join-Path $fakeBin "claude.cmd") -Encoding ascii -Value @"
 @echo off
-if "%~1"=="--version" echo 2.1.211
+if "%~1"=="--version" echo 2.1.214
 if "%~1"=="--version" exit /b 0
 echo ARGS=%*> "%CLAUDE_STUB_CAPTURE%"
 echo TOKEN=%ANTHROPIC_AUTH_TOKEN%>> "%CLAUDE_STUB_CAPTURE%"
@@ -72,6 +72,7 @@ exit /b 0
   Assert-True (-not $installOutput.Contains($key)) "install output does not expose the credential"
   $settings = Get-Content -Raw -LiteralPath $settingsPath | ConvertFrom-Json
   Assert-Equal "algomim" ([string] $settings.model) "published install selects the Algomim model"
+  Assert-Equal "medium" ([string] $settings.effortLevel) "published install selects medium effort by default"
   Assert-Equal "1" ([string] @($settings.availableModels).Count) "published install exposes one named model"
   Assert-Equal "algomim" ([string] @($settings.availableModels)[0]) "published install allows only the Algomim model"
   Assert-Equal "https://api.algomim.com" ([string] $settings.env.ANTHROPIC_BASE_URL) "published install records the service-root base URL"
@@ -79,6 +80,7 @@ exit /b 0
   Assert-Equal "algomim" ([string] $settings.env.ANTHROPIC_DEFAULT_OPUS_MODEL) "published install maps gateway Default to Algomim"
   Assert-Equal "Algomim" ([string] $settings.env.ANTHROPIC_DEFAULT_OPUS_MODEL_NAME) "published install labels the single named model"
   Assert-Equal "Algomim Model API" ([string] $settings.env.ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION) "published install describes the single named model"
+  Assert-Equal "effort" ([string] $settings.env.ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES) "published install enables only the supported Claude effort levels"
   Assert-Equal "algomim" ([string] $settings.env.ANTHROPIC_SMALL_FAST_MODEL) "published install redirects background functionality"
   Assert-Equal "0" ([string] $settings.env.CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY) "published install disables gateway model discovery"
   Assert-Equal "1" ([string] $settings.env.CLAUDE_CODE_DISABLE_1M_CONTEXT) "published install disables unsupported 1M aliases"
@@ -87,7 +89,6 @@ exit /b 0
   foreach ($suffix in @("", "_NAME", "_DESCRIPTION", "_SUPPORTED_CAPABILITIES")) {
     Assert-True ($null -eq $settings.env.PSObject.Properties["ANTHROPIC_CUSTOM_MODEL_OPTION$suffix"]) "published settings omit the custom model option so it does not duplicate the mapped Opus row"
   }
-  Assert-True ($null -eq $settings.env.PSObject.Properties["ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES"]) "published settings omit the unused Opus capability override"
   foreach ($family in @("FABLE", "SONNET", "HAIKU")) {
     foreach ($suffix in @("MODEL", "MODEL_NAME", "MODEL_DESCRIPTION", "MODEL_SUPPORTED_CAPABILITIES")) {
       Assert-True ($null -eq $settings.env.PSObject.Properties["ANTHROPIC_DEFAULT_${family}_$suffix"]) "published settings omit the $family $suffix mapping so the picker has no duplicate family entry"

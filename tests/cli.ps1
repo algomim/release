@@ -63,8 +63,8 @@ try {
   Assert-True (Test-Path -LiteralPath $cmdShim -PathType Leaf) "installer writes the CMD shim"
   Assert-True (Test-Path -LiteralPath $cliStatePath -PathType Leaf) "installer writes CLI state"
   $cliState = Get-Content -Raw -LiteralPath $cliStatePath | ConvertFrom-Json
-  Assert-Equal "0.3.9" ([string] $cliState.version) "CLI state records the release version"
-  Assert-Equal "v0.3.9" ([string] $cliState.releaseTag) "CLI state records the immutable tag"
+  Assert-Equal "0.3.10" ([string] $cliState.version) "CLI state records the release version"
+  Assert-Equal "v0.3.10" ([string] $cliState.releaseTag) "CLI state records the immutable tag"
   Assert-True (-not (Get-Content -Raw -LiteralPath $cliStatePath).Contains($defaultKey)) "CLI state contains no credential"
 
   $binPath = (Join-Path $algomimHome "bin").TrimEnd('\')
@@ -78,7 +78,7 @@ try {
   Assert-Equal $installedAt ([string] $reinstalledState.installedAt) "reinstall preserves the initial install time"
 
   $versionOutput = (& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $cli version 2>&1 | Out-String)
-  Assert-True ($versionOutput.Contains("Algomim CLI 0.3.9 (v0.3.9)")) "version reports CLI version"
+  Assert-True ($versionOutput.Contains("Algomim CLI 0.3.10 (v0.3.10)")) "version reports CLI version"
   $helpOutput = (& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $cli help 2>&1 | Out-String)
   Assert-True ($helpOutput.Contains("algomim doctor [codex|claude] [--offline]")) "help lists lifecycle commands"
   Assert-True ($helpOutput.Contains("algomim run <codex|claude>")) "help lists the run command"

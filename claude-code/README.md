@@ -135,7 +135,7 @@ credential. The installer does not add files to `~/.claude`.
 ## Minimum versions
 
 - Algomim CLI 0.3.5 or newer. Users below v0.3.5 install the current tag once.
-- Claude Code 2.1.200 or newer. Verify with `claude --version`.
+- Claude Code 2.1.214 or newer. Verify with `claude --version`.
 - The recorded base URL is the service root, such as
   `https://api.algomim.com`, without a trailing `/v1`.
 - The Algomim Model API must expose `POST /v1/messages`
@@ -152,10 +152,14 @@ settings. The settings file then routes the session to Algomim:
 
 - `ANTHROPIC_BASE_URL` — the Algomim Model API service root
 - `model` / `ANTHROPIC_MODEL` — `algomim` for the main session
+- `effortLevel` — starts Algomim sessions at `medium`; `/effort` can switch
+  between the model-supported `low`, `medium`, and `high` levels
 - `availableModels` — allows only the named `algomim` model
 - `ANTHROPIC_DEFAULT_OPUS_MODEL` — maps Claude Code's gateway Default and one
   named picker row to `algomim`; the `_NAME` and `_DESCRIPTION` companions label
-  that single row `Algomim` / `Algomim Model API`
+  that single row `Algomim` / `Algomim Model API`; the
+  `_SUPPORTED_CAPABILITIES=effort` companion enables `/effort` without
+  advertising unsupported `xhigh` or `max` levels
 - `ANTHROPIC_SMALL_FAST_MODEL` — pins background functionality to `algomim`
   without adding a picker row
 - inherited `ANTHROPIC_CUSTOM_MODEL_OPTION*`, `ANTHROPIC_DEFAULT_*`, and
@@ -216,6 +220,11 @@ context estimate, which is expected and harmless.
 - In a gateway session, `ANTHROPIC_DEFAULT_OPUS_MODEL` controls the Default
   resolution and adds one configurable Opus-family row. Its `_NAME` and
   `_DESCRIPTION` companions present that row as `Algomim`.
+- Claude Code's pinned-model `_SUPPORTED_CAPABILITIES` contract enables the
+  base `low`, `medium`, and `high` effort levels with `effort`; `xhigh` and
+  `max` require separate capabilities and are intentionally not declared.
+- `effortLevel=medium` is scoped to the isolated Algomim settings passed with
+  `algomim run claude`; normal Claude settings are not modified.
 - `ANTHROPIC_CUSTOM_MODEL_OPTION` is intentionally absent because it would add
   a second named row beside the mapped Opus row.
 - `ANTHROPIC_SMALL_FAST_MODEL` is retained for background functionality even

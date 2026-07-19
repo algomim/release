@@ -17,9 +17,9 @@ function Write-JsonFile {
 }
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$baselineVersion = "0.3.8"
+$baselineVersion = "0.3.9"
 $baselineTag = "v$baselineVersion"
-$baselineRevision = "fbd0cc04abd01f66e1235f40d525882f67d51f5c"
+$baselineRevision = "c5b8285408312e295f684ab0c3ef510dd89f3c10"
 $candidateContract = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "claude-code\release.json") | ConvertFrom-Json
 $candidateVersion = [string] $candidateContract.version
 $candidateTag = [string] $candidateContract.releaseTag
@@ -45,7 +45,7 @@ try {
   New-Item -ItemType Directory -Path $fakeBin -Force | Out-Null
   Set-Content -LiteralPath (Join-Path $fakeBin "claude.cmd") -Encoding ascii -Value @"
 @echo off
-if "%~1"=="--version" echo 2.1.212
+if "%~1"=="--version" echo 2.1.214
 exit /b 0
 "@
   $env:ALGOMIM_HOME = $algomimHome
@@ -133,6 +133,7 @@ exit /b 0
   Assert-Equal $runtimeSentinelBefore ([Convert]::ToBase64String([System.IO.File]::ReadAllBytes($runtimeSentinelPath))) "update preserves isolated Claude Code runtime state"
   Assert-True (-not $updateOutput.Contains($key)) "update output never exposes the credential"
   Assert-Equal "algomim" ([string] $updatedSettings.model) "updated settings select the Algomim model"
+  Assert-Equal "medium" ([string] $updatedSettings.effortLevel) "updated settings select medium effort by default"
   Assert-Equal "1" ([string] @($updatedSettings.availableModels).Count) "updated settings expose one named model"
   Assert-Equal "algomim" ([string] @($updatedSettings.availableModels)[0]) "updated settings allow only the Algomim model"
   Assert-Equal "https://api.algomim.com" ([string] $updatedSettings.env.ANTHROPIC_BASE_URL) "updated settings preserve the service-root base URL"
@@ -140,6 +141,7 @@ exit /b 0
   Assert-Equal "algomim" ([string] $updatedSettings.env.ANTHROPIC_DEFAULT_OPUS_MODEL) "updated settings map gateway Default to Algomim"
   Assert-Equal "Algomim" ([string] $updatedSettings.env.ANTHROPIC_DEFAULT_OPUS_MODEL_NAME) "updated settings label the single named model"
   Assert-Equal "Algomim Model API" ([string] $updatedSettings.env.ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION) "updated settings describe the single named model"
+  Assert-Equal "effort" ([string] $updatedSettings.env.ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES) "updated settings enable only the supported Claude effort levels"
   Assert-Equal "algomim" ([string] $updatedSettings.env.ANTHROPIC_SMALL_FAST_MODEL) "updated settings redirect background functionality"
   Assert-Equal "0" ([string] $updatedSettings.env.CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY) "updated settings disable gateway model discovery"
   Assert-Equal "1" ([string] $updatedSettings.env.CLAUDE_CODE_DISABLE_1M_CONTEXT) "updated settings disable unsupported 1M aliases"
@@ -148,7 +150,6 @@ exit /b 0
   foreach ($suffix in @("", "_NAME", "_DESCRIPTION", "_SUPPORTED_CAPABILITIES")) {
     Assert-True ($null -eq $updatedSettings.env.PSObject.Properties["ANTHROPIC_CUSTOM_MODEL_OPTION$suffix"]) "updated settings omit the custom model option so it does not duplicate the mapped Opus row"
   }
-  Assert-True ($null -eq $updatedSettings.env.PSObject.Properties["ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES"]) "updated settings omit the unused Opus capability override"
   foreach ($family in @("FABLE", "SONNET", "HAIKU")) {
     foreach ($suffix in @("MODEL", "MODEL_NAME", "MODEL_DESCRIPTION", "MODEL_SUPPORTED_CAPABILITIES")) {
       Assert-True ($null -eq $updatedSettings.env.PSObject.Properties["ANTHROPIC_DEFAULT_${family}_$suffix"]) "updated settings omit the $family $suffix mapping so the picker has no duplicate family entry"
