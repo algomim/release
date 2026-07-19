@@ -54,7 +54,7 @@ try {
   & (Join-Path $repoRoot "tools\build-release.ps1") -Version $currentTag -OutputDirectory $artifacts *> $null
 
   $previousArchive = Join-Path $testRoot "previous-release.zip"
-  & git -C $repoRoot archive --format=zip "--output=$previousArchive" $previousTag codex
+  & git -C $repoRoot archive --format=zip "--output=$previousArchive" $previousTag codex cli claude-code shared
   if ($LASTEXITCODE -ne 0) {
     throw "Could not archive previous release $previousTag."
   }
@@ -66,7 +66,8 @@ try {
   & (Join-Path $previousSource "codex\install.ps1") `
     -ApiKey $key `
     -ReleaseVersion ([string] $previousContract.version) `
-    -ReleaseRef $previousTag *> $null
+    -ReleaseRef $previousTag `
+    -CliPathTarget Process *> $null
 
   $statePath = Join-Path $algomimHome "integrations\codex\state.json"
   $credentialsPath = Join-Path $algomimHome "credentials"

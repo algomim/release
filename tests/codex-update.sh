@@ -92,7 +92,12 @@ cat > "$FAKE_BIN/codex" <<'EOF'
 #!/usr/bin/env sh
 exit 0
 EOF
-chmod 700 "$FAKE_BIN/codex"
+cat > "$FAKE_BIN/curl" <<'EOF'
+#!/usr/bin/env sh
+printf '[fail] update compatibility test attempted network access\n' >&2
+exit 97
+EOF
+chmod 700 "$FAKE_BIN/codex" "$FAKE_BIN/curl"
 PATH="$FAKE_BIN:$PATH"
 export PATH CODEX_HOME ALGOMIM_HOME
 unset ALGOMIM_API_KEY ALGOMIM_PROFILE 2>/dev/null || true
@@ -104,7 +109,7 @@ GOOD_HASH=$(sha256_file "$ARTIFACTS/$GOOD_ARTIFACT")
 write_manifest "$CURRENT_VERSION" "$GOOD_ARTIFACT" "$GOOD_HASH" "$ARTIFACTS/manifest.json"
 
 PREVIOUS_ARCHIVE="$TEST_ROOT/previous-release.tar"
-git -C "$REPO_ROOT" archive --format=tar --output="$PREVIOUS_ARCHIVE" "$PREVIOUS_TAG" codex
+git -C "$REPO_ROOT" archive --format=tar --output="$PREVIOUS_ARCHIVE" "$PREVIOUS_TAG" codex cli claude-code shared
 mkdir -p "$STAGE/previous"
 tar -xf "$PREVIOUS_ARCHIVE" -C "$STAGE/previous"
 PREVIOUS_VERSION=$(json_field version "$STAGE/previous/codex/release.json")
@@ -113,7 +118,8 @@ assert_equal "$PREVIOUS_TAG" "$(json_field releaseTag "$STAGE/previous/codex/rel
 sh "$STAGE/previous/codex/install.sh" \
   --api-key "$KEY" \
   --release-version "$PREVIOUS_VERSION" \
-  --release-ref "$PREVIOUS_TAG" >/dev/null 2>&1
+  --release-ref "$PREVIOUS_TAG" \
+  --cli-path-target process >/dev/null 2>&1
 
 STATE_PATH="$ALGOMIM_HOME/integrations/codex/state.json"
 CREDENTIALS_PATH="$ALGOMIM_HOME/credentials"

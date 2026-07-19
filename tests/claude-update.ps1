@@ -17,17 +17,19 @@ function Write-JsonFile {
 }
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$baselineVersion = "0.3.7"
+$baselineVersion = "0.3.8"
 $baselineTag = "v$baselineVersion"
-$baselineRevision = "7f92045602849931c1eb7b2c1a737c886c3971c7"
-$candidateVersion = "0.3.8"
-$candidateTag = "v$candidateVersion"
+$baselineRevision = "fbd0cc04abd01f66e1235f40d525882f67d51f5c"
+$candidateContract = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "claude-code\release.json") | ConvertFrom-Json
+$candidateVersion = [string] $candidateContract.version
+$candidateTag = [string] $candidateContract.releaseTag
+Assert-Equal "v$candidateVersion" $candidateTag "candidate contract matches its version"
 $invalidVersion = if ($candidateVersion -ceq "9999.9999.9999") { "9999.9999.9998" } else { "9999.9999.9999" }
 $invalidTag = "v$invalidVersion"
 
 $testRoot = Join-Path $repoRoot (".claude-update-test-{0}" -f [Guid]::NewGuid().ToString("N"))
 $artifacts = Join-Path $testRoot "artifacts"
-$baselineArchive = Join-Path $testRoot "claude-v0.3.7.zip"
+$baselineArchive = Join-Path $testRoot "claude-$baselineTag.zip"
 $baselineSource = Join-Path $testRoot "baseline"
 $candidateStage = Join-Path $testRoot "candidate"
 $algomimHome = Join-Path $testRoot "algomim"
@@ -56,7 +58,7 @@ exit /b 0
   }
   Expand-Archive -LiteralPath $baselineArchive -DestinationPath $baselineSource
   $baselineContract = Get-Content -Raw -LiteralPath (Join-Path $baselineSource "claude-code\release.json") | ConvertFrom-Json
-  Assert-Equal $baselineVersion ([string] $baselineContract.version) "baseline contract records v0.3.7"
+  Assert-Equal $baselineVersion ([string] $baselineContract.version) "baseline contract records $baselineTag"
   Assert-Equal $baselineTag ([string] $baselineContract.releaseTag) "baseline contract matches the immutable tag"
 
   & (Join-Path $baselineSource "cli\install.ps1") `
@@ -66,7 +68,7 @@ exit /b 0
     -PathTarget Process *> $null
 
   $baselineCliState = Get-Content -Raw -LiteralPath (Join-Path $algomimHome "cli\state.json") | ConvertFrom-Json
-  Assert-Equal $baselineVersion ([string] $baselineCliState.version) "test installs the immutable v0.3.7 CLI"
+  Assert-Equal $baselineVersion ([string] $baselineCliState.version) "test installs the immutable $baselineTag CLI"
   Assert-True ((Get-Content -Raw -LiteralPath (Join-Path $algomimHome "bin\algomim.ps1")).Contains("CLAUDE_CONFIG_DIR")) "baseline CLI launcher contains Claude config isolation"
 
   & (Join-Path $baselineSource "claude-code\install.ps1") `
@@ -87,7 +89,7 @@ exit /b 0
 
   $baselineState = Get-Content -Raw -LiteralPath $statePath | ConvertFrom-Json
   $baselineCredential = Get-Content -Raw -LiteralPath $credentialsPath
-  Assert-Equal $baselineVersion ([string] $baselineState.version) "test starts from immutable v0.3.7"
+  Assert-Equal $baselineVersion ([string] $baselineState.version) "test starts from immutable $baselineTag"
   Assert-Equal $baselineTag ([string] $baselineState.releaseTag) "baseline state records the immutable tag"
   Assert-Equal "https://api.algomim.com" ([string] $baselineState.baseUrl) "baseline records the service-root base URL"
 
@@ -124,7 +126,7 @@ exit /b 0
       -ArtifactBaseUrl $artifacts *>&1 | Out-String)
   $updatedState = Get-Content -Raw -LiteralPath $statePath | ConvertFrom-Json
   $updatedSettings = Get-Content -Raw -LiteralPath $settingsPath | ConvertFrom-Json
-  Assert-Equal $candidateVersion ([string] $updatedState.version) "v0.3.7 CLI and updater install candidate v0.3.8"
+  Assert-Equal $candidateVersion ([string] $updatedState.version) "$baselineTag CLI and updater install candidate $candidateTag"
   Assert-Equal $candidateTag ([string] $updatedState.releaseTag) "updated state records the candidate tag"
   Assert-Equal ([string] $baselineState.installedAt) ([string] $updatedState.installedAt) "update preserves installation timestamp"
   Assert-Equal $baselineCredential (Get-Content -Raw -LiteralPath $credentialsPath) "update preserves the exact credential store"

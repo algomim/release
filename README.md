@@ -34,13 +34,13 @@ release repository. See
 Windows PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/algomim/release/v0.3.8/codex/install.ps1 | iex
+irm https://raw.githubusercontent.com/algomim/release/v0.3.9/codex/install.ps1 | iex
 ```
 
 macOS/Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.3.8/codex/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.3.9/codex/install.sh | sh
 ```
 
 The installer asks for the Algomim API key without echoing it, installs the
@@ -64,13 +64,13 @@ Plain `codex` keeps using the user's existing OpenAI configuration.
 Windows PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/algomim/release/v0.3.8/claude-code/install.ps1 | iex
+irm https://raw.githubusercontent.com/algomim/release/v0.3.9/claude-code/install.ps1 | iex
 ```
 
 macOS/Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.3.8/claude-code/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.3.9/claude-code/install.sh | sh
 ```
 
 The installer does not edit `~/.claude`; plain `claude` keeps using the user's
@@ -132,6 +132,6 @@ hand-authored model metadata.
 - Keep API keys in the shared Algomim credential store, never in a
   client-owned directory.
 - Prefer versioned release URLs for customer-facing instructions once a release
-  is cut, for example `/v0.3.8/codex/install.ps1`.
+  is cut, for example `/v0.3.9/codex/install.ps1`.
 - Never move an existing release tag or replace published release assets; ship
   a new semantic version instead.
