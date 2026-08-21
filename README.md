@@ -1,137 +1,23 @@
-# Algomim Release
+# Algomim Mascot releases
 
-Public setup artifacts for connecting third-party AI clients to Algomim.
+This public repository is the release channel for **Algomim Mascot**, the
+Windows desktop agent that signs in to Algomim and works with supported CAD
+applications.
 
-This repository does not contain Algomim product source code, private inference
-configuration, provider credentials, hidden prompts, or customer data. It only
-contains client-side setup assets such as profiles, model catalogs, install
-scripts, uninstall scripts, and troubleshooting docs.
+## Latest beta
 
-## Available integrations
+**0.1.0.2** · Windows x64
 
-| Integration        | Status | Path                             |
-| ------------------ | ------ | -------------------------------- |
-| Codex CLI          | Pilot  | [`codex/`](./codex/)             |
-| Claude Code        | Pilot  | [`claude-code/`](./claude-code/) |
-| Visual Studio Code | Future | [`vscode/`](./vscode/)           |
-| Cursor             | Future | [`cursor/`](./cursor/)           |
-| Windsurf           | Future | [`windsurf/`](./windsurf/)       |
+[Download Algomim Mascot Beta](https://github.com/algomim/release/releases/download/mascot-v0.1.0.2/Algomim-Mascot-Beta-Setup-0.1.0.2-x64.exe)
 
-[`integrations.json`](./integrations.json) is the machine-readable integration
-index. `Future` entries reserve a stable integration ID and directory only;
-they are not installable or advertised as compatible yet.
-
-Each integration is self-contained. Client-specific configuration, installers,
-health checks, and uninstallers stay in that client's directory. Integrations
-reuse the product-owned credential store documented in
-[`docs/credentials.md`](./docs/credentials.md). API protocol compatibility
-remains in Algomim's hosted services and is never implemented in this public
-release repository. See
-[`docs/integration-standard.md`](./docs/integration-standard.md).
-
-## Codex quick install
-
-Windows PowerShell:
-
-```powershell
-irm https://raw.githubusercontent.com/algomim/release/v0.3.10/codex/install.ps1 | iex
-```
-
-macOS/Linux:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.3.10/codex/install.sh | sh
-```
-
-The installer asks for the Algomim API key without echoing it, installs the
-Codex integration, and adds the `algomim` shell CLI to the user's PATH. On
-macOS/Linux, open a new shell after installation. Then start Codex with the
-Algomim profile:
-
-```sh
-algomim run codex
-```
-
-The Algomim profile enables Codex's native web-search tool. Search requests
-remain part of the hosted Inference contract; this repository only advertises
-and enables the client capability.
-
-Plain `codex` keeps using the user's existing OpenAI configuration.
-(`codex --profile algomim` remains equivalent for direct use.)
-
-## Claude Code quick install
-
-Windows PowerShell:
-
-```powershell
-irm https://raw.githubusercontent.com/algomim/release/v0.3.10/claude-code/install.ps1 | iex
-```
-
-macOS/Linux:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/algomim/release/v0.3.10/claude-code/install.sh | sh
-```
-
-The installer does not edit `~/.claude`; plain `claude` keeps using the user's
-own Anthropic account. Algomim launches use an integration-owned Claude config
-directory so model choices, history, plugins, and credentials cannot leak into
-plain Claude sessions. Start Claude Code against Algomim with:
-
-```sh
-algomim run claude
-```
-
-Inside that isolated session, Claude Code's native web-search server tool is
-handled by hosted Algomim Inference. It does not require a separate local MCP
-web-search server.
-
-Users already on v0.3.5 or newer can update their installed integrations with
-`algomim update`; the CLI executable itself is refreshed only by a tag-pinned
-installer. Older Claude Code integrations must run the current installer once
-because config isolation is owned by the Algomim CLI launcher.
-
-## The algomim CLI
-
-The installed CLI owns explicit lifecycle operations:
+The beta installer is currently unsigned, so Windows may show an
+**Unknown publisher** warning. Verify the installer before running it:
 
 ```text
-algomim login
-algomim logout
-algomim version
-algomim help
-algomim install <codex|claude>
-algomim run <codex|claude> [-- <client arguments>]
-algomim update [codex|claude] [--check]
-algomim doctor [codex|claude] [--offline]
-algomim uninstall <codex|claude>
+SHA-256  A844F1E5ED48E6C03B4C28482E8DE96BA1F97316554AE80AF3FD8F073D944563
 ```
 
-Bare `algomim doctor` and `algomim update` operate on every installed
-integration. There is no background updater. `algomim uninstall <integration>`
-removes only that integration and preserves the shared API key;
-`algomim logout` removes the selected credential profile.
-
-Release packaging, checksums, installed state, update, and rollback are
-documented in
-[`docs/release-lifecycle.md`](./docs/release-lifecycle.md).
-
-Codex model cards are generated from canonical Inference model definitions.
-`codex/algomim-models.json` and its SHA-256 lock are release inputs, not
-hand-authored model metadata.
-
-## Repository rules
-
-- Keep this repository public-safe.
-- Never commit API keys, internal service keys, OpenRouter credentials, hidden
-  kernel text, customer emails, or private deployment names.
-- Do not put product backend code here.
-- Do not publish placeholder installers for `Future` integrations.
-- Keep every integration isolated from the user's configuration for other AI
-  clients.
-- Keep API keys in the shared Algomim credential store, never in a
-  client-owned directory.
-- Prefer versioned release URLs for customer-facing instructions once a release
-  is cut, for example `/v0.3.10/codex/install.ps1`.
-- Never move an existing release tag or replace published release assets; ship
-  a new semantic version instead.
+The application reads [`mascot/latest.json`](mascot/latest.json) when the user
+chooses **Check for updates**. It accepts only HTTPS installers published from
+this repository and verifies the downloaded file against that manifest before
+opening it.
