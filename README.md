@@ -6,15 +6,15 @@ applications.
 
 ## Latest beta
 
-**0.1.0.12** · Windows x64
+**0.1.0.13** · Windows x64
 
-[Download Algomim Mascot Beta](https://github.com/algomim/release/releases/download/mascot-v0.1.0.12/Algomim-Mascot-Beta-Setup-0.1.0.12-x64.exe)
+[Download Algomim Mascot Beta](https://github.com/algomim/release/releases/download/mascot-v0.1.0.13/Algomim-Mascot-Beta-Setup-0.1.0.13-x64.exe)
 
 The beta installer is currently unsigned, so Windows may show an
 **Unknown publisher** warning. Verify the installer before running it:
 
 ```text
-SHA-256  D74EAFC1EDAA9C26582A4E8898C5A6E44A9A7A5FB08DA5720F1BD4535391FBFD
+SHA-256  2D794E56C3681BC918429645F70583A68726C71AFA4D6DB644BCE01D220F3FEB
 ```
 
 The application reads [`mascot/latest.json`](mascot/latest.json) when the user
