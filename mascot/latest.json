@@ -1,7 +1,7 @@
 {
   "product": "algomim-mascot",
-  "version": "0.1.0.19",
+  "version": "0.1.0.20",
   "architecture": "x64",
-  "installerUrl": "https://github.com/algomim/release/releases/download/mascot-v0.1.0.19/Algomim-Mascot-Beta-Setup-0.1.0.19-x64.exe",
-  "sha256": "725AAFD3072FF1FF310E02E3F04D923EA2FEC61BDCE8B3FABA25E2B198057B3F"
+  "installerUrl": "https://github.com/algomim/release/releases/download/mascot-v0.1.0.20/Algomim-Mascot-Beta-Setup-0.1.0.20-x64.exe",
+  "sha256": "46D2393417776093281FCA13D924A2D9515E7610E10353A70358492750A6101B"
 }
