@@ -6,15 +6,15 @@ supported CAD applications.
 
 ## Latest beta
 
-**0.1.0.33** · Windows x64
+**0.1.0.35** · Windows x64
 
-[Download Algomim Mascot Beta](https://github.com/algomim/release/releases/download/mascot-v0.1.0.33/Algomim-Mascot-Beta-Setup-0.1.0.33-x64.exe)
+[Download Algomim Mascot Beta](https://github.com/algomim/release/releases/download/mascot-v0.1.0.35/Algomim-Mascot-Beta-Setup-0.1.0.35-x64.exe)
 
 The beta installer is currently unsigned, so Windows may show an
 **Unknown publisher** warning. Verify the installer before running it:
 
 ```text
-SHA-256  56ADF3F5D641DE8ABDABF6BE6F5A8D67DCEF7E2AA82100D24586BC09133D7A73
+SHA-256  9F3CD60E6E63460A30E103BE11FCBC6248FBE9FCAEB8157DC44D38C8B401EAB5
 ```
 
 The application reads [`mascot/latest.json`](mascot/latest.json) automatically and when the user
